@@ -6,8 +6,8 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("Simulador interno del bot")
-st.caption("Pruebas locales del flujo conversacional con múltiples usuarios")
+st.title("Internal bot simulator")
+st.caption("Local testing/ simple questions")
 
 
 # ----------------------------
