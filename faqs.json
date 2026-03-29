@@ -146,62 +146,71 @@
       ]
     }
   },
-  "opciones": {
-    "es": {
-      "palabras": [
-        "opciones",
-        "que ofreces",
-        "que contenido hay",
-        "que puedo ver",
-        "que tienes disponible",
-        "que opciones hay",
-        "que tienes para ver",
-        "que tienes"
-      ],
-      "respuestas": [
-        "Hay varias opciones disponibles 😊",
-        "Si quieres, te cuento un poco lo que hay.",
-        "Tengo varias cosas y depende de lo que te interese mas.",
-        "Puedo explicarte lo que hay disponible sin problema.",
-        "Si quieres, te digo un poco mejor que opciones hay."
-      ]
-    },
-    "en": {
-      "palabras": [
-        "options",
-        "what do you offer",
-        "what options do you have",
-        "what can i see",
-        "what do you have available",
-        "what do you have",
-        "what content do you have",
-        "what content is available"
-      ],
-      "respuestas": [
-        "There are different options available 😊",
-        "I can tell you a bit about what's available.",
-        "I have a few different things, depending on what interests you most.",
-        "I can explain what's available, no problem.",
-        "There are a few options and I can tell u more"
-      ]
-    },
-    "ru": {
-      "palabras": [
-        "варианты",
-        "что есть",
-        "что ты предлагаешь",
-        "что можно посмотреть",
-        "что доступно",
-        "какие варианты"
-      ],
-      "respuestas": [
-        "Есть несколько вариантов 😊",
-        "Если хочешь, могу рассказать, что есть.",
-        "У меня есть разные варианты, зависит от того, что тебе интересно.",
-        "Могу спокойно объяснить, что доступно."
-      ]
-    }
+ "opciones": {
+  "es": {
+    "palabras": [
+      "opciones",
+      "que ofreces",
+      "que contenido hay",
+      "que puedo ver",
+      "que tienes disponible",
+      "que opciones hay",
+      "que tienes para ver",
+      "que tienes",
+      "que cosas tienes",
+      "quiero ver tu contenido",
+      "quiero ver lo que tienes",
+      "quiero ver que tienes"
+    ],
+    "respuestas": [
+      "Hay varias opciones disponibles 😊",
+      "Si quieres, te cuento un poco lo que hay.",
+      "Tengo varias cosas y depende de lo que te interese más.",
+      "Puedo explicarte lo que hay disponible sin problema.",
+      "Si quieres, te digo un poco mejor qué opciones hay."
+    ]
   },
+  "en": {
+    "palabras": [
+      "options",
+      "what do you offer",
+      "what options do you have",
+      "what can i see",
+      "what do you have available",
+      "what do you have",
+      "what content do you have",
+      "what content is available",
+      "what do you have to see",
+      "i want to see your content",
+      "i want to see what you have"
+    ],
+    "respuestas": [
+      "There are different options available 😊",
+      "I can tell you a bit about what's available.",
+      "I have a few different things, depending on what interests you most.",
+      "I can explain what's available, no problem.",
+      "There are a few options and I can tell you more."
+    ]
+  },
+  "ru": {
+    "palabras": [
+      "варианты",
+      "что есть",
+      "что ты предлагаешь",
+      "что можно посмотреть",
+      "что доступно",
+      "какие варианты",
+      "хочу посмотреть твой контент",
+      "хочу посмотреть что у тебя есть"
+    ],
+    "respuestas": [
+      "Есть несколько вариантов 😊",
+      "Если хочешь, могу рассказать, что есть.",
+      "У меня есть разные варианты, зависит от того, что тебе интересно.",
+      "Могу спокойно объяснить, что доступно."
+    ]
+  }
+},
   "disponibilidad": {
     "es": {
       "palabras": [
@@ -359,50 +368,67 @@
   }
 },
   "pregunta_venta": {
-    "es": {
-      "palabras": [
-        "vendes fotos",
-        "vendes contenido",
-        "tienes fotos",
-        "vendes imagenes",
-        "vendes packs"
-      ],
-      "respuestas": [
-        "Si, hay distintas opciones disponibles.",
-        "Si, tengo varias opciones y te puedo contar un poco.",
-        "Sí, puedo explicarte qué opciones hay."
-      ]
-    },
-    "en": {
-      "palabras": [
-        "do you sell pictures",
-        "do u sell pictures",
-        "do you sell pics",
-        "do u sell pics",
-        "do you sell content",
-        "do you have photos",
-        "do you sell photos"
-      ],
-      "respuestas": [
-        "Yes, I do have different options available.",
-        "Yes, there are different options and I can tell you more.",
-        "I do have content options, yes."
-      ]
-    },
-    "ru": {
-      "palabras": [
-        "ты продаешь фото",
-        "у тебя есть фото",
-        "ты продаешь контент",
-        "есть фото"
-      ],
-      "respuestas": [
-        "Да, у меня есть разные варианты.",
-        "Да, есть несколько вариантов, могу рассказать подробнее.",
-        "Да, могу объяснить, что доступно."
-      ]
-    }
+  "es": {
+    "palabras": [
+      "vendes fotos",
+      "vendes contenido",
+      "tienes fotos",
+      "vendes imagenes",
+      "vendes packs",
+      "quiero fotos",
+      "quiero ver fotos",
+      "quiero contenido",
+      "quiero ver contenido",
+      "quiero ver tu contenido",
+      "quiero ver lo que tienes"
+    ],
+    "respuestas": [
+      "Sí, hay distintas opciones disponibles.",
+      "Sí, tengo varias opciones y te puedo contar un poco.",
+      "Sí, puedo explicarte qué opciones hay.",
+      "Sí, si quieres te cuento lo que hay disponible."
+    ]
   },
+  "en": {
+    "palabras": [
+      "do you sell pictures",
+      "do u sell pictures",
+      "do you sell pics",
+      "do u sell pics",
+      "do you sell content",
+      "do you have photos",
+      "do you sell photos",
+      "i want pictures",
+      "i want pics",
+      "i want photos",
+      "i want to see your content",
+      "i want to see what you have"
+    ],
+    "respuestas": [
+      "Yes, I do have different options available.",
+      "Yes, there are different options and I can tell you more.",
+      "I do have content options, yes.",
+      "Yes, if you want I can tell you what’s available."
+    ]
+  },
+  "ru": {
+    "palabras": [
+      "ты продаешь фото",
+      "у тебя есть фото",
+      "ты продаешь контент",
+      "есть фото",
+      "хочу фото",
+      "хочу посмотреть контент",
+      "хочу посмотреть что у тебя есть"
+    ],
+    "respuestas": [
+      "Да, у меня есть разные варианты.",
+      "Да, есть несколько вариантов, могу рассказать подробнее.",
+      "Да, могу объяснить, что доступно.",
+      "Да, если хочешь, я могу рассказать, что есть."
+    ]
+  }
+},
   "pregunta_precio_detallada": {
     "es": {
       "palabras": [
@@ -448,44 +474,54 @@
     }
   },
   "preferencia_contenido": {
-    "es": {
-      "palabras": [
-        "quiero algo mas sexy",
-        "quiero algo mas atrevido",
-        "quiero algo mas spicy",
-        "quiero algo asi"
-      ],
-      "respuestas": [
-        "Entiendo. Si quieres, te puedo contar qué tipo de opciones hay.",
-        "Vale, puedo orientarte con las opciones disponibles.",
-        "Si quieres, te explico un poco lo que hay."
-      ]
-    },
-    "en": {
-      "palabras": [
-        "i want sexy ones",
-        "i want something sexy",
-        "i want something spicy",
-        "i want hotter ones",
-        "i want more daring ones"
-      ],
-      "respuestas": [
-        "Got it. I can tell you what kind of options are available.",
-        "Okay, I can guide you through the available options.",
-        "I understand. If you want, I can explain what’s available."
-      ]
-    },
-    "ru": {
-      "palabras": [
-        "хочу что то более сексуальное",
-        "хочу что то поинтереснее",
-        "хочу что то погорячее"
-      ],
-      "respuestas": [
-        "Поняла. Если хочешь, могу рассказать, какие есть варианты.",
-        "Хорошо, могу сориентировать по доступным вариантам.",
-        "Если хочешь, я могу объяснить, что есть."
-      ]
-    }
+  "es": {
+    "palabras": [
+      "quiero algo mas sexy",
+      "quiero algo mas atrevido",
+      "quiero algo mas spicy",
+      "quiero algo asi",
+      "quiero fotos sexy",
+      "quiero fotos mas atrevidas",
+      "quiero ver algo sexy"
+    ],
+    "respuestas": [
+      "Entiendo. Si quieres, te puedo contar qué tipo de opciones hay.",
+      "Vale, puedo orientarte con las opciones disponibles.",
+      "Si quieres, te explico un poco lo que hay.",
+      "Te puedo decir qué tipo de opciones hay disponibles."
+    ]
+  },
+  "en": {
+    "palabras": [
+      "i want sexy ones",
+      "i want something sexy",
+      "i want something spicy",
+      "i want hotter ones",
+      "i want more daring ones",
+      "i want sexy pics",
+      "i want sexy pictures"
+    ],
+    "respuestas": [
+      "Got it. I can tell you what kind of options are available.",
+      "Okay, I can guide you through the available options.",
+      "I understand. If you want, I can explain what’s available.",
+      "I can tell you the kind of options that are available."
+    ]
+  },
+  "ru": {
+    "palabras": [
+      "хочу что то более сексуальное",
+      "хочу что то поинтереснее",
+      "хочу что то погорячее",
+      "хочу более откровенные фото"
+    ],
+    "respuestas": [
+      "Поняла. Если хочешь, могу рассказать, какие есть варианты.",
+      "Хорошо, могу сориентировать по доступным вариантам.",
+      "Если хочешь, я могу объяснить, что есть.",
+      "Могу рассказать, какие варианты доступны."
+    ]
+  }
+  }
   }
 }
