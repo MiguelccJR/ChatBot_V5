@@ -160,7 +160,10 @@
       "que cosas tienes",
       "quiero ver tu contenido",
       "quiero ver lo que tienes",
-      "quiero ver que tienes"
+      "quiero ver que tienes",
+      "videos",
+      "fotos",
+      "packs"
     ],
     "respuestas": [
       "Hay varias opciones disponibles 😊",
@@ -182,7 +185,13 @@
       "what content is available",
       "what do you have to see",
       "i want to see your content",
-      "i want to see what you have"
+      "i want to see what you have",
+      "videos",
+      "photos",
+      "packs",
+      "what kind of videos",
+      "what kind of photos",
+      "what packs do you have"
     ],
     "respuestas": [
       "There are different options available 😊",
@@ -201,7 +210,10 @@
       "что доступно",
       "какие варианты",
       "хочу посмотреть твой контент",
-      "хочу посмотреть что у тебя есть"
+      "хочу посмотреть что у тебя есть",
+      "видео",
+      "фото",
+      "паки"
     ],
     "respuestas": [
       "Есть несколько вариантов 😊",
@@ -380,7 +392,11 @@
       "quiero contenido",
       "quiero ver contenido",
       "quiero ver tu contenido",
-      "quiero ver lo que tienes"
+      "quiero ver lo que tienes",
+      "y videos",
+      "y fotos",
+      "y packs",
+      "y pack de fotos"
     ],
     "respuestas": [
       "Sí, hay distintas opciones disponibles.",
@@ -402,15 +418,43 @@
       "i want pics",
       "i want photos",
       "i want to see your content",
-      "i want to see what you have"
+      "i want to see what you have",
+      "and videos",
+      "and photos",
+      "and packs",
+      "and pack of photos",
+      "video pack",
+      "photo pack"
     ],
     "respuestas": [
       "Yes, I do have different options available.",
       "Yes, there are different options and I can tell you more.",
       "I do have content options, yes.",
-      "Yes, if you want I can tell you what’s available."
+      "Yes, I can tell you what’s available."
     ]
   },
+  "ru": {
+    "palabras": [
+      "ты продаешь фото",
+      "у тебя есть фото",
+      "ты продаешь контент",
+      "есть фото",
+      "хочу фото",
+      "хочу посмотреть контент",
+      "хочу посмотреть что у тебя есть",
+      "и видео",
+      "и фото",
+      "и паки",
+      "и пак фото"
+    ],
+    "respuestas": [
+      "Да, у меня есть разные варианты.",
+      "Да, есть несколько вариантов, могу рассказать подробнее.",
+      "Да, могу объяснить, что доступно.",
+      "Да, я могу рассказать, что есть."
+    ]
+  }
+},
   "ru": {
     "palabras": [
       "ты продаешь фото",
