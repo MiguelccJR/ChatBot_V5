@@ -461,7 +461,8 @@ def detectar_idioma(texto):
     "precio", "opciones", "hablas", "contenido", "puedes", "quiero",
     "tienes", "cuanto", "respondes", "responder", "por aqui",
     "que tal", "sigues ahi", "me vas a responder",
-    "vendes", "fotos", "packs", "fotos", "disponible"
+    "vendes", "fotos", "packs", "fotos", "y", "video", "videos",
+    "foto", "fotos", "pack", "packs"
     ]
 
     palabras_en = [
@@ -470,7 +471,8 @@ def detectar_idioma(texto):
     "you", "your", "offer", "have", "are", "there",
     "cost", "will you answer", "why are you not replying",
     "russian", "reply", "answer", "takes", "long",
-    "available", "free", "pictures", "photos"
+    "available", "free", "pictures", "photos", "and",
+    "video", "videos", "photo", "photos", "pack", "packs"
     ]
 
     palabras_ru = [
@@ -488,7 +490,7 @@ def detectar_idioma(texto):
     "контент", "фото", "говоришь", "можешь",
     "почему", "долго", "доступна", "свободна",
     "сексуальное", "поинтереснее", "погорячее",
-    "какие", "не знаю", "онлайн"
+    "какие", "не знаю", "онлайн","и", "видео", "фото", "пак", "паки"
     ]
 
     puntuacion_es = 0
@@ -519,7 +521,14 @@ def detectar_idioma(texto):
         return mejor_idioma
 
     return "otro"
-
+def crear_estado_conversacion():
+    return {
+        "saludo_ya_hecho": False,
+        "ultimas_categorias": [],
+        "ultimas_respuestas": [],
+        "num_mensajes": 0,
+        "ultimo_idioma": None
+    }
 def detectar_consulta_idioma_simple(texto):
     """
     Detecta cuando el mensaje es solo el nombre de un idioma.
@@ -617,7 +626,7 @@ def crear_estado_conversacion():
         "num_mensajes": 0
     }
 
-def actualizar_estado_conversacion(estado, categorias_usadas, mensajes_respuesta):
+def actualizar_estado_conversacion(estado, categorias_usadas, mensajes_respuesta, idioma=None):
     estado["num_mensajes"] += 1
 
     for categoria in categorias_usadas:
@@ -626,14 +635,28 @@ def actualizar_estado_conversacion(estado, categorias_usadas, mensajes_respuesta
     for mensaje in mensajes_respuesta:
         estado["ultimas_respuestas"].append(mensaje)
 
-    # Mantener solo las ultimas 5 categorias y 5 respuestas
     estado["ultimas_categorias"] = estado["ultimas_categorias"][-5:]
     estado["ultimas_respuestas"] = estado["ultimas_respuestas"][-5:]
 
     if "saludo" in categorias_usadas:
         estado["saludo_ya_hecho"] = True
 
-        
+    if idioma:
+        estado["ultimo_idioma"] = idioma
+
+def es_continuacion_simple(texto):
+    texto = texto.strip().lower()
+
+    inicios = [
+        "and ", "and, ",
+        "y ", "y, ",
+        "also ", "also, ",
+        "tambien ", "tambien, ",
+        "и ", "и, ",
+        "еще ", "ещё ", "ещё, ", "еще, "
+    ]
+
+    return any(texto.startswith(x) for x in inicios)        
 def ordenar_categorias_por_prioridad(categorias_detectadas):
     
     """
@@ -1367,6 +1390,68 @@ def elegir_mejor_respuesta(respuestas_posibles, usados, idioma):
 
 def procesar_mensaje(mensaje, faq_data, estado):
     mensaje_normalizado = normalizar_texto_extendido(mensaje)
+    # Detectar idioma base
+idioma_detectado = detectar_idioma(mensaje_normalizado)
+
+# Si es una continuación corta y no detecta idioma bien,
+# usamos el último idioma de la conversación
+if es_continuacion_simple(mensaje_normalizado):
+    idioma_continuacion = idioma_detectado if idioma_detectado != "otro" else estado.get("ultimo_idioma", "en")
+
+    ultimas = estado.get("ultimas_categorias", [])
+
+    # Categorías que tienen sentido para continuaciones tipo "and videos"
+    categorias_validas = [
+        "opciones",
+        "pregunta_venta",
+        "pregunta_precio_detallada",
+        "precio",
+        "preferencia_contenido"
+    ]
+
+    ultima_categoria_util = None
+    for cat in reversed(ultimas):
+        if cat in categorias_validas:
+            ultima_categoria_util = cat
+            break
+
+    if ultima_categoria_util:
+        respuesta = generar_respuesta(
+            ultima_categoria_util,
+            idioma_continuacion,
+            mensaje_normalizado,
+            faq_data,
+            usados=[]
+        )
+
+        mensajes_respuesta = [respuesta]
+        categorias_usadas = [ultima_categoria_util]
+
+        actualizar_estado_conversacion(
+            estado,
+            categorias_usadas,
+            mensajes_respuesta,
+            idioma=idioma_continuacion
+        )
+
+        return {
+            "idioma": idioma_continuacion,
+            "categorias_detectadas": [
+                {
+                    "categoria": ultima_categoria_util,
+                    "puntuacion": 1,
+                    "confianza": "media"
+                }
+            ],
+            "categorias_respondibles": [
+                {
+                    "categoria": ultima_categoria_util,
+                    "puntuacion": 1,
+                    "confianza": "media"
+                }
+            ],
+            "mensajes_respuesta": mensajes_respuesta
+        }
     idioma_simple = detectar_consulta_idioma_simple(mensaje_normalizado)
     if idioma_simple:
         respuesta = generar_respuesta("idioma", idioma_simple, mensaje_normalizado, faq_data, usados=[])
@@ -1386,7 +1471,7 @@ def procesar_mensaje(mensaje, faq_data, estado):
             ]
         }
     
-    idioma = detectar_idioma(mensaje_normalizado)
+    idioma = idioma_detectado()
     
     if idioma == "otro":
         return {
@@ -1423,7 +1508,7 @@ def procesar_mensaje(mensaje, faq_data, estado):
         )
     mensajes_respuesta = humanizar_mensajes(mensajes_respuesta, idioma)
     categorias_usadas = [x["categoria"] for x in categorias_respondibles]
-    actualizar_estado_conversacion(estado, categorias_usadas, mensajes_respuesta)
+    actualizar_estado_conversacion(estado, categorias_usadas, mensajes_respuesta, idioma=idioma)
 
     return {
         "idioma": idioma,
