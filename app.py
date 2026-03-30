@@ -3,6 +3,7 @@ import csv
 import os
 from datetime import datetime
 from faq_bot_v5 import cargar_faqs, crear_estado_conversacion, procesar_mensaje
+from db import create_test_session, save_message_turn, save_feedback
 
 st.set_page_config(
     page_title="Simulador FAQ Bot Multi-Chat",
@@ -153,6 +154,16 @@ def inicializar_estado_app():
     if st.session_state.chat_activo not in st.session_state.chats:
         st.session_state.chat_activo = list(st.session_state.chats.keys())[0]
 
+    #Parte de base de datos SQL
+    if "tester_name" not in st.session_state:
+        st.session_state.tester_name = ""
+
+    if "db_session_id" not in st.session_state:
+        st.session_state.db_session_id = None
+
+    if "turn_number_global" not in st.session_state:
+        st.session_state.turn_number_global = 0
+
 inicializar_feedback_file()
 inicializar_estado_app()
 
@@ -162,7 +173,11 @@ inicializar_estado_app()
 # ----------------------------
 with st.sidebar:
     st.subheader("Chats")
-
+    
+    st.session_state.tester_name = st.text_input(
+    "Tester name",
+    value=st.session_state.tester_name
+    )
     # Crear nuevo chat
     with st.expander("Nuevo chat", expanded=False):
         nuevo_nombre = st.text_input("Nombre del nuevo chat", value="")
@@ -355,6 +370,11 @@ texto_usuario = st.chat_input(
 # ----------------------------
 # Procesamiento
 # ----------------------------
+if st.session_state.db_session_id is None:
+    st.session_state.db_session_id = create_test_session(
+        tester_name=st.session_state.tester_name or "anonymous",
+        platform=chat_activo["plataforma"]
+    )
 if texto_usuario and texto_usuario.strip():
     chat_activo["turn_counter"] += 1
     turn_id = chat_activo["turn_counter"]
@@ -371,6 +391,17 @@ if texto_usuario and texto_usuario.strip():
         texto_usuario,
         st.session_state.faq_data,
         chat_activo["estado_bot"]
+    )
+        st.session_state.turn_number_global += 1
+    
+    save_message_turn(
+        session_id=st.session_state.db_session_id,
+        turn_number=st.session_state.turn_number_global,
+        user_message=texto_usuario,
+        bot_messages=resultado["mensajes_respuesta"],
+        idioma=resultado["idioma"],
+        categorias_detectadas=resultado["categorias_detectadas"],
+        categorias_respondibles=resultado["categorias_respondibles"]
     )
 
     chat_activo["ultimo_resultado"] = resultado
