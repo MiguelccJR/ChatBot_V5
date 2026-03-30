@@ -1396,8 +1396,10 @@ def procesar_mensaje(mensaje, faq_data, estado):
 # Si es una continuación corta y no detecta idioma bien,
 # usamos el último idioma de la conversación
     if es_continuacion_simple(mensaje_normalizado):
-        idioma_continuacion = idioma_detectado if idioma_detectado != "otro" else estado.get("ultimo_idioma", "en")
-
+        idioma_continuacion = (
+            idioma_detectado 
+            if idioma_detectado != "otro" else estado.get("ultimo_idioma", "en")
+        )
     ultimas = estado.get("ultimas_categorias", [])
 
     # Categorías que tienen sentido para continuaciones tipo "and videos"
