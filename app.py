@@ -1,4 +1,7 @@
 import streamlit as st
+import csv
+import os
+from datetime import datetime
 from faq_bot_v5 import cargar_faqs, crear_estado_conversacion, procesar_mensaje
 
 st.set_page_config(
@@ -27,7 +30,8 @@ def crear_chat(nombre=None, plataforma="prueba"):
         "estado_bot": crear_estado_conversacion(),
         "ultimo_resultado": None,
         "score": 0,
-        "etiquetas": []
+        "etiquetas": [],
+        "turn_counter": 0
     }
 
 
@@ -43,6 +47,7 @@ def reiniciar_chat_activo():
     chat["ultimo_resultado"] = None
     chat["score"] = 0
     chat["etiquetas"] = []
+    chat ["turn_counter"] = 0
 
 
 def eliminar_chat_activo():
@@ -58,7 +63,67 @@ def eliminar_chat_activo():
 def recargar_faqs():
     st.session_state.faq_data = cargar_faqs()
 
+FEEDBACK_FILE = "feedback_log.csv"
 
+
+def inicializar_feedback_file():
+    if not os.path.exists(FEEDBACK_FILE):
+        with open(FEEDBACK_FILE, "w", newline="", encoding="utf-8-sig") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "timestamp",
+                    "chat_name",
+                    "platform",
+                    "turn_id",
+                    "user_message",
+                    "bot_message",
+                    "rating",
+                    "comment",
+                    "idioma",
+                    "categorias_detectadas",
+                    "categorias_respondibles"
+                ],
+                delimiter=";",
+                quoting=csv.QUOTE_ALL
+            )
+            writer.writeheader()
+
+
+def guardar_feedback_csv(chat_data, assistant_message, rating, comment):
+    with open(FEEDBACK_FILE, "a", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "timestamp",
+                "chat_name",
+                "platform",
+                "turn_id",
+                "user_message",
+                "bot_message",
+                "rating",
+                "comment",
+                "idioma",
+                "categorias_detectadas",
+                "categorias_respondibles"
+            ],
+            delimiter=";",
+            quoting=csv.QUOTE_ALL
+        )
+
+        writer.writerow({
+            "timestamp": datetime.now().isoformat(),
+            "chat_name": chat_data["nombre"],
+            "platform": chat_data["plataforma"],
+            "turn_id": assistant_message.get("turn_id", ""),
+            "user_message": assistant_message.get("user_message", ""),
+            "bot_message": assistant_message.get("content", ""),
+            "rating": rating,
+            "comment": comment,
+            "idioma": assistant_message.get("idioma", ""),
+            "categorias_detectadas": str(assistant_message.get("categorias_detectadas", [])),
+            "categorias_respondibles": str(assistant_message.get("categorias_respondibles", []))
+        })
 # ----------------------------
 # Inicialización global app
 # ----------------------------
@@ -88,7 +153,7 @@ def inicializar_estado_app():
     if st.session_state.chat_activo not in st.session_state.chats:
         st.session_state.chat_activo = list(st.session_state.chats.keys())[0]
 
-
+inicializar_feedback_file()
 inicializar_estado_app()
 
 
@@ -242,9 +307,41 @@ chat_activo = obtener_chat_activo()
 st.subheader(f"Chat activo: {chat_activo['nombre']} [{chat_activo['plataforma']}]")
 
 # Mostrar solo últimos mensajes para no cargar demasiado
-for mensaje in chat_activo["historial"][-40:]:
+for i, mensaje in enumerate(chat_activo["historial"][-40:]):
     with st.chat_message(mensaje["role"]):
         st.markdown(mensaje["content"])
+
+        if mensaje["role"] == "assistant":
+            turn_id = mensaje.get("turn_id", f"no_turn_{i}")
+
+            if mensaje.get("feedback") is None:
+                rating_key = f"rating_{chat_activo['nombre']}_{turn_id}"
+                comment_key = f"comment_{chat_activo['nombre']}_{turn_id}"
+                save_key = f"save_{chat_activo['nombre']}_{turn_id}"
+
+                rating = st.radio(
+                    "Rate this reply",
+                    options=["Good", "Regular", "Bad"],
+                    horizontal=True,
+                    key=rating_key
+                )
+
+                comment = st.text_input(
+                    "Optional comment",
+                    placeholder="What sounds good or bad here?",
+                    key=comment_key
+                )
+
+                if st.button("Save feedback", key=save_key):
+                    mensaje["feedback"] = rating
+                    mensaje["feedback_comment"] = comment
+                    guardar_feedback_csv(chat_activo, mensaje, rating, comment)
+                    st.success("Feedback saved")
+                    st.rerun()
+            else:
+                st.caption(f"Saved feedback: {mensaje['feedback']}")
+                if mensaje.get("feedback_comment"):
+                    st.caption(f"Comment: {mensaje['feedback_comment']}")
 
 
 # ----------------------------
@@ -259,13 +356,17 @@ texto_usuario = st.chat_input(
 # Procesamiento
 # ----------------------------
 if texto_usuario and texto_usuario.strip():
-    # Guardar usuario
+    chat_activo["turn_counter"] += 1
+    turn_id = chat_activo["turn_counter"]
+
+    # Save user message
     chat_activo["historial"].append({
         "role": "user",
-        "content": texto_usuario
+        "content": texto_usuario,
+        "turn_id": turn_id
     })
 
-    # Procesar con el estado propio de ese chat
+    # Process using this chat's own bot state
     resultado = procesar_mensaje(
         texto_usuario,
         st.session_state.faq_data,
@@ -274,11 +375,19 @@ if texto_usuario and texto_usuario.strip():
 
     chat_activo["ultimo_resultado"] = resultado
 
-    # Guardar respuestas del bot
-    for respuesta in resultado["mensajes_respuesta"]:
-        chat_activo["historial"].append({
-            "role": "assistant",
-            "content": respuesta
-        })
+    # Save bot reply as a single grouped message
+    chat_activo["historial"].append({
+        "role": "assistant",
+        "content": "\n\n".join(resultado["mensajes_respuesta"]),
+        "turn_id": turn_id,
+        "feedback": None,
+        "feedback_comment": "",
+        "user_message": texto_usuario,
+        "idioma": resultado["idioma"],
+        "categorias_detectadas": resultado["categorias_detectadas"],
+        "categorias_respondibles": resultado["categorias_respondibles"]
+    })
+
+    st.rerun()
 
     st.rerun()
