@@ -1391,23 +1391,23 @@ def elegir_mejor_respuesta(respuestas_posibles, usados, idioma):
 def procesar_mensaje(mensaje, faq_data, estado):
     mensaje_normalizado = normalizar_texto_extendido(mensaje)
     # Detectar idioma base
-idioma_detectado = detectar_idioma(mensaje_normalizado)
+    idioma_detectado = detectar_idioma(mensaje_normalizado)
 
 # Si es una continuación corta y no detecta idioma bien,
 # usamos el último idioma de la conversación
     if es_continuacion_simple(mensaje_normalizado):
         idioma_continuacion = idioma_detectado if idioma_detectado != "otro" else estado.get("ultimo_idioma", "en")
 
-        ultimas = estado.get("ultimas_categorias", [])
+    ultimas = estado.get("ultimas_categorias", [])
 
-        # Categorías que tienen sentido para continuaciones tipo "and videos"
-        categorias_validas = [
+    # Categorías que tienen sentido para continuaciones tipo "and videos"
+    categorias_validas = [
         "opciones",
         "pregunta_venta",
         "pregunta_precio_detallada",
         "precio",
         "preferencia_contenido"
-        ]
+    ]
 
     ultima_categoria_util = None
     for cat in reversed(ultimas):
