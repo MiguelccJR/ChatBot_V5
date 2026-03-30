@@ -1391,10 +1391,10 @@ def elegir_mejor_respuesta(respuestas_posibles, usados, idioma):
 def procesar_mensaje(mensaje, faq_data, estado):
     mensaje_normalizado = normalizar_texto_extendido(mensaje)
 
-    # Detectar idioma base
+    # Detect base language
     idioma_detectado = detectar_idioma(mensaje_normalizado)
 
-    # Caso especial: consulta simple de idioma
+    # Simple language-only query
     idioma_simple = detectar_consulta_idioma_simple(mensaje_normalizado)
     if idioma_simple:
         respuesta = generar_respuesta("idioma", idioma_simple, mensaje_normalizado, faq_data, usados=[])
@@ -1405,7 +1405,7 @@ def procesar_mensaje(mensaje, faq_data, estado):
             "mensajes_respuesta": [respuesta]
         }
 
-    # Caso especial: continuación corta tipo "and videos", "y packs", "и фото"
+    # Short continuation like "and videos", "y packs", "и фото"
     if es_continuacion_simple(mensaje_normalizado):
         idioma_continuacion = (
             idioma_detectado
