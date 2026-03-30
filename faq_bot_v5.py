@@ -1390,80 +1390,83 @@ def elegir_mejor_respuesta(respuestas_posibles, usados, idioma):
 
 def procesar_mensaje(mensaje, faq_data, estado):
     mensaje_normalizado = normalizar_texto_extendido(mensaje)
+
     # Detectar idioma base
     idioma_detectado = detectar_idioma(mensaje_normalizado)
 
-# Si es una continuación corta y no detecta idioma bien,
-# usamos el último idioma de la conversación
+    # Caso especial: consulta simple de idioma
+    idioma_simple = detectar_consulta_idioma_simple(mensaje_normalizado)
+    if idioma_simple:
+        respuesta = generar_respuesta("idioma", idioma_simple, mensaje_normalizado, faq_data, usados=[])
+        return {
+            "idioma": idioma_simple,
+            "categorias_detectadas": [{"categoria": "idioma", "puntuacion": 1, "confianza": "media"}],
+            "categorias_respondibles": [{"categoria": "idioma", "puntuacion": 1, "confianza": "media"}],
+            "mensajes_respuesta": [respuesta]
+        }
+
+    # Caso especial: continuación corta tipo "and videos", "y packs", "и фото"
     if es_continuacion_simple(mensaje_normalizado):
         idioma_continuacion = (
             idioma_detectado
             if idioma_detectado != "otro"
             else estado.get("ultimo_idioma", "en")
-    )
-
-    ultimas = estado.get("ultimas_categorias", [])
-
-    categorias_validas = [
-        "opciones",
-        "pregunta_venta",
-        "pregunta_precio_detallada",
-        "precio",
-        "preferencia_contenido"
-    ]
-
-    ultima_categoria_util = None
-    for cat in reversed(ultimas):
-        if cat in categorias_validas:
-            ultima_categoria_util = cat
-            break
-
-    if ultima_categoria_util:
-        respuesta = generar_respuesta(
-            ultima_categoria_util,
-            idioma_continuacion,
-            mensaje_normalizado,
-            faq_data,
-            usados=[]
         )
 
-        mensajes_respuesta = [respuesta]
-        categorias_usadas = [ultima_categoria_util]
+        ultimas = estado.get("ultimas_categorias", [])
 
-        actualizar_estado_conversacion(
-            estado,
-            categorias_usadas,
-            mensajes_respuesta,
-            idioma=idioma_continuacion
-        )
+        categorias_validas = [
+            "opciones",
+            "pregunta_venta",
+            "pregunta_precio_detallada",
+            "precio",
+            "preferencia_contenido"
+        ]
 
-        return {
-            "idioma": idioma_continuacion,
-            "categorias_detectadas": [
-                {
-                    "categoria": ultima_categoria_util,
-                    "puntuacion": 1,
-                    "confianza": "media"
-                }
-            ],
-            "categorias_respondibles": [
-                {
-                    "categoria": ultima_categoria_util,
-                    "puntuacion": 1,
-                    "confianza": "media"
-                }
-            ],
-            "mensajes_respuesta": mensajes_respuesta
-        }
-    idioma_simple = detectar_consulta_idioma_simple(mensaje_normalizado)
-    if idioma_simple:
-        respuesta = generar_respuesta("idioma", idioma_simple, mensaje_normalizado, faq_data, usados=[])
-        return {
-        "idioma": idioma_simple,
-        "categorias_detectadas": [{"categoria": "idioma", "puntuacion": 1, "confianza": "media"}],
-        "categorias_respondibles": [{"categoria": "idioma", "puntuacion": 1, "confianza": "media"}],
-        "mensajes_respuesta": [respuesta]
-    }
+        ultima_categoria_util = None
+        for cat in reversed(ultimas):
+            if cat in categorias_validas:
+                ultima_categoria_util = cat
+                break
+
+        if ultima_categoria_util:
+            respuesta = generar_respuesta(
+                ultima_categoria_util,
+                idioma_continuacion,
+                mensaje_normalizado,
+                faq_data,
+                usados=[]
+            )
+
+            mensajes_respuesta = [respuesta]
+            categorias_usadas = [ultima_categoria_util]
+
+            actualizar_estado_conversacion(
+                estado,
+                categorias_usadas,
+                mensajes_respuesta,
+                idioma=idioma_continuacion
+            )
+
+            return {
+                "idioma": idioma_continuacion,
+                "categorias_detectadas": [
+                    {
+                        "categoria": ultima_categoria_util,
+                        "puntuacion": 1,
+                        "confianza": "media"
+                    }
+                ],
+                "categorias_respondibles": [
+                    {
+                        "categoria": ultima_categoria_util,
+                        "puntuacion": 1,
+                        "confianza": "media"
+                    }
+                ],
+                "mensajes_respuesta": mensajes_respuesta
+            }
+
     if parece_texto_basura(mensaje_normalizado):
         return {
             "idioma": "desconocido",
@@ -1473,16 +1476,16 @@ def procesar_mensaje(mensaje, faq_data, estado):
                 "Lo siento, no he entendido bien el mensaje. ¿Puedes escribirlo de otra forma?"
             ]
         }
-    
+
     idioma = idioma_detectado
-    
+
     if idioma == "otro":
         return {
             "idioma": "otro",
             "categorias_detectadas": [],
             "categorias_respondibles": [],
             "mensajes_respuesta": [
-                "Sorry, I can only reply in Spanish or English right now."
+                "Sorry, I can only reply in Spanish, English or Russian right now."
             ]
         }
 
@@ -1497,18 +1500,23 @@ def procesar_mensaje(mensaje, faq_data, estado):
             mensajes_respuesta = [
                 "Lo siento, no he entendido bien el mensaje. ¿Puedes escribirlo de otra forma?"
             ]
+        elif idioma == "ru":
+            mensajes_respuesta = [
+                "Извини, я не совсем поняла сообщение. Можешь написать по-другому?"
+            ]
         else:
             mensajes_respuesta = [
                 "Sorry, I didn’t fully understand the message. Can you rephrase it?"
             ]
     else:
-          mensajes_respuesta = construir_lista_mensajes(
+        mensajes_respuesta = construir_lista_mensajes(
             categorias_respondibles,
             idioma,
             mensaje_normalizado,
             faq_data,
             estado
         )
+
     mensajes_respuesta = humanizar_mensajes(mensajes_respuesta, idioma)
     categorias_usadas = [x["categoria"] for x in categorias_respondibles]
     actualizar_estado_conversacion(estado, categorias_usadas, mensajes_respuesta, idioma=idioma)
