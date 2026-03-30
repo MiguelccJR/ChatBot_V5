@@ -1,28 +1,25 @@
 import streamlit as st
-import csv
-import os
-from datetime import datetime
 from faq_bot_v5 import cargar_faqs, crear_estado_conversacion, procesar_mensaje
 from db import create_test_session, save_message_turn, save_feedback
 
 st.set_page_config(
-    page_title="Simulador FAQ Bot Multi-Chat",
+    page_title="FAQ Bot Multi-Chat Simulator",
     layout="wide"
 )
 
 st.title("Internal bot simulator")
-st.caption("Local testing/ simple questions")
+st.caption("Local testing / simple questions")
 
 
 # ----------------------------
-# Helpers de chats
+# Chat helpers
 # ----------------------------
-def crear_chat(nombre=None, plataforma="prueba"):
+def crear_chat(nombre=None, plataforma="test"):
     chat_id = f"chat_{st.session_state.next_chat_id:03d}"
     st.session_state.next_chat_id += 1
 
     if nombre is None:
-        nombre = f"usuario_{chat_id.split('_')[-1]}"
+        nombre = f"user_{chat_id.split('_')[-1]}"
 
     return chat_id, {
         "nombre": nombre,
@@ -37,8 +34,7 @@ def crear_chat(nombre=None, plataforma="prueba"):
 
 
 def obtener_chat_activo():
-    chat_id = st.session_state.chat_activo
-    return st.session_state.chats[chat_id]
+    return st.session_state.chats[st.session_state.chat_activo]
 
 
 def reiniciar_chat_activo():
@@ -48,13 +44,13 @@ def reiniciar_chat_activo():
     chat["ultimo_resultado"] = None
     chat["score"] = 0
     chat["etiquetas"] = []
-    chat ["turn_counter"] = 0
+    chat["turn_counter"] = 0
 
 
 def eliminar_chat_activo():
     chat_id = st.session_state.chat_activo
     if len(st.session_state.chats) <= 1:
-        st.warning("Debe quedar al menos un chat.")
+        st.warning("At least one chat must remain.")
         return
 
     del st.session_state.chats[chat_id]
@@ -64,69 +60,9 @@ def eliminar_chat_activo():
 def recargar_faqs():
     st.session_state.faq_data = cargar_faqs()
 
-FEEDBACK_FILE = "feedback_log.csv"
 
-
-def inicializar_feedback_file():
-    if not os.path.exists(FEEDBACK_FILE):
-        with open(FEEDBACK_FILE, "w", newline="", encoding="utf-8-sig") as f:
-            writer = csv.DictWriter(
-                f,
-                fieldnames=[
-                    "timestamp",
-                    "chat_name",
-                    "platform",
-                    "turn_id",
-                    "user_message",
-                    "bot_message",
-                    "rating",
-                    "comment",
-                    "idioma",
-                    "categorias_detectadas",
-                    "categorias_respondibles"
-                ],
-                delimiter=";",
-                quoting=csv.QUOTE_ALL
-            )
-            writer.writeheader()
-
-
-def guardar_feedback_csv(chat_data, assistant_message, rating, comment):
-    with open(FEEDBACK_FILE, "a", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(
-            f,
-            fieldnames=[
-                "timestamp",
-                "chat_name",
-                "platform",
-                "turn_id",
-                "user_message",
-                "bot_message",
-                "rating",
-                "comment",
-                "idioma",
-                "categorias_detectadas",
-                "categorias_respondibles"
-            ],
-            delimiter=";",
-            quoting=csv.QUOTE_ALL
-        )
-
-        writer.writerow({
-            "timestamp": datetime.now().isoformat(),
-            "chat_name": chat_data["nombre"],
-            "platform": chat_data["plataforma"],
-            "turn_id": assistant_message.get("turn_id", ""),
-            "user_message": assistant_message.get("user_message", ""),
-            "bot_message": assistant_message.get("content", ""),
-            "rating": rating,
-            "comment": comment,
-            "idioma": assistant_message.get("idioma", ""),
-            "categorias_detectadas": str(assistant_message.get("categorias_detectadas", [])),
-            "categorias_respondibles": str(assistant_message.get("categorias_respondibles", []))
-        })
 # ----------------------------
-# Inicialización global app
+# Global app initialization
 # ----------------------------
 def inicializar_estado_app():
     if "faq_data" not in st.session_state:
@@ -144,17 +80,6 @@ def inicializar_estado_app():
     if "mostrar_debug" not in st.session_state:
         st.session_state.mostrar_debug = True
 
-    # Crear primer chat si no existe ninguno
-    if not st.session_state.chats:
-        chat_id, chat_data = crear_chat(nombre="usuario_001", plataforma="prueba")
-        st.session_state.chats[chat_id] = chat_data
-        st.session_state.chat_activo = chat_id
-
-    # Blindaje por si el chat activo desaparece
-    if st.session_state.chat_activo not in st.session_state.chats:
-        st.session_state.chat_activo = list(st.session_state.chats.keys())[0]
-
-    #Parte de base de datos SQL
     if "tester_name" not in st.session_state:
         st.session_state.tester_name = ""
 
@@ -164,31 +89,39 @@ def inicializar_estado_app():
     if "turn_number_global" not in st.session_state:
         st.session_state.turn_number_global = 0
 
-inicializar_feedback_file()
+    if not st.session_state.chats:
+        chat_id, chat_data = crear_chat(nombre="user_001", plataforma="test")
+        st.session_state.chats[chat_id] = chat_data
+        st.session_state.chat_activo = chat_id
+
+    if st.session_state.chat_activo not in st.session_state.chats:
+        st.session_state.chat_activo = list(st.session_state.chats.keys())[0]
+
+
 inicializar_estado_app()
 
 
 # ----------------------------
-# Sidebar: gestión de chats
+# Sidebar
 # ----------------------------
 with st.sidebar:
     st.subheader("Chats")
-    
+
     st.session_state.tester_name = st.text_input(
-    "Tester name",
-    value=st.session_state.tester_name
+        "Tester name",
+        value=st.session_state.tester_name
     )
-    # Crear nuevo chat
-    with st.expander("Nuevo chat", expanded=False):
-        nuevo_nombre = st.text_input("Nombre del nuevo chat", value="")
+
+    with st.expander("New chat", expanded=False):
+        nuevo_nombre = st.text_input("New chat name", value="")
         nueva_plataforma = st.selectbox(
-            "Plataforma",
-            options=["prueba", "telegram", "onlyfans"],
+            "Platform",
+            options=["test", "telegram", "onlyfans"],
             index=0,
             key="select_nueva_plataforma"
         )
 
-        if st.button("Crear chat", use_container_width=True):
+        if st.button("Create chat", use_container_width=True):
             nombre_final = nuevo_nombre.strip() if nuevo_nombre.strip() else None
             chat_id, chat_data = crear_chat(
                 nombre=nombre_final,
@@ -198,7 +131,6 @@ with st.sidebar:
             st.session_state.chat_activo = chat_id
             st.rerun()
 
-    # Selector de chat activo
     opciones_chat = []
     mapa_labels = {}
 
@@ -208,7 +140,7 @@ with st.sidebar:
         mapa_labels[cid] = label
 
     chat_seleccionado = st.radio(
-        "Selecciona chat",
+        "Select chat",
         options=opciones_chat,
         index=opciones_chat.index(st.session_state.chat_activo),
         format_func=lambda cid: mapa_labels[cid]
@@ -222,181 +154,187 @@ with st.sidebar:
 
     chat_activo = obtener_chat_activo()
 
-    st.subheader("Editar chat activo")
+    st.subheader("Edit active chat")
 
     nuevo_nombre_chat = st.text_input(
-        "Nombre visible",
+        "Display name",
         value=chat_activo["nombre"],
         key="input_nombre_chat_activo"
     )
 
     nueva_plataforma_chat = st.selectbox(
-        "Plataforma del chat",
-        options=["prueba", "telegram", "onlyfans"],
-        index=["prueba", "telegram", "onlyfans"].index(chat_activo["plataforma"]),
+        "Chat platform",
+        options=["test", "telegram", "onlyfans"],
+        index=["test", "telegram", "onlyfans"].index(chat_activo["plataforma"]),
         key="select_plataforma_chat_activo"
     )
 
-    if st.button("Guardar cambios chat", use_container_width=True):
+    if st.button("Save chat changes", use_container_width=True):
         chat_activo["nombre"] = nuevo_nombre_chat.strip() if nuevo_nombre_chat.strip() else chat_activo["nombre"]
         chat_activo["plataforma"] = nueva_plataforma_chat
-        st.success("Chat actualizado")
+        st.success("Chat updated")
         st.rerun()
 
     col1, col2 = st.columns(2)
 
     with col1:
-        if st.button("Reiniciar chat", use_container_width=True):
+        if st.button("Reset chat", use_container_width=True):
             reiniciar_chat_activo()
             st.rerun()
 
     with col2:
-        if st.button("Eliminar chat", use_container_width=True):
+        if st.button("Delete chat", use_container_width=True):
             eliminar_chat_activo()
             st.rerun()
 
     st.divider()
 
-    if st.button("Recargar FAQs", use_container_width=True):
+    if st.button("Reload FAQs", use_container_width=True):
         recargar_faqs()
-        st.success("FAQs recargadas")
+        st.success("FAQs reloaded")
 
     st.session_state.mostrar_debug = st.checkbox(
-        "Mostrar debug técnico",
+        "Show technical debug",
         value=st.session_state.mostrar_debug
     )
 
     st.divider()
-    st.subheader("Resumen chat activo")
-    st.write(f"**Nombre:** {chat_activo['nombre']}")
-    st.write(f"**Plataforma:** {chat_activo['plataforma']}")
+    st.subheader("Active chat summary")
+    st.write(f"**Name:** {chat_activo['nombre']}")
+    st.write(f"**Platform:** {chat_activo['plataforma']}")
     st.write(f"**Score:** {chat_activo['score']}")
-    st.write(f"**Etiquetas:** {', '.join(chat_activo['etiquetas']) if chat_activo['etiquetas'] else '-'}")
+    st.write(f"**Tags:** {', '.join(chat_activo['etiquetas']) if chat_activo['etiquetas'] else '-'}")
 
     if st.session_state.mostrar_debug:
         st.divider()
-        st.subheader("Estado interno del bot")
+        st.subheader("Bot internal state")
         st.json(chat_activo["estado_bot"])
 
         if chat_activo["ultimo_resultado"] is not None:
             resultado = chat_activo["ultimo_resultado"]
 
             st.divider()
-            st.subheader("Último análisis")
-            st.write(f"**Idioma detectado:** `{resultado['idioma']}`")
+            st.subheader("Latest analysis")
+            st.write(f"**Detected language:** `{resultado['idioma']}`")
 
-            st.write("**Categorías detectadas:**")
+            st.write("**Detected categories:**")
             if resultado["categorias_detectadas"]:
                 for item in resultado["categorias_detectadas"]:
                     if "puntuacion" in item and "confianza" in item:
                         st.write(
-                            f"- {item['categoria']} | puntuación={item['puntuacion']} | confianza={item['confianza']}"
+                            f"- {item['categoria']} | score={item['puntuacion']} | confidence={item['confianza']}"
                         )
                     else:
                         st.write(f"- {item['categoria']}")
             else:
-                st.write("- Ninguna")
+                st.write("- None")
 
-            st.write("**Categorías respondibles:**")
+            st.write("**Respondable categories:**")
             if resultado["categorias_respondibles"]:
                 for item in resultado["categorias_respondibles"]:
                     if "puntuacion" in item and "confianza" in item:
                         st.write(
-                            f"- {item['categoria']} | puntuación={item['puntuacion']} | confianza={item['confianza']}"
+                            f"- {item['categoria']} | score={item['puntuacion']} | confidence={item['confianza']}"
                         )
                     else:
                         st.write(f"- {item['categoria']}")
             else:
-                st.write("- Ninguna")
+                st.write("- None")
 
-            st.write("**Mensajes generados:**")
+            st.write("**Generated messages:**")
             for i, msg in enumerate(resultado["mensajes_respuesta"], start=1):
                 st.write(f"{i}. {msg}")
 
 
 # ----------------------------
-# Zona principal
+# Main area
 # ----------------------------
 chat_activo = obtener_chat_activo()
 
-st.subheader(f"Chat activo: {chat_activo['nombre']} [{chat_activo['plataforma']}]")
+st.subheader(f"Active chat: {chat_activo['nombre']} [{chat_activo['plataforma']}]")
 
-# Mostrar solo últimos mensajes para no cargar demasiado
 for i, mensaje in enumerate(chat_activo["historial"][-40:]):
     with st.chat_message(mensaje["role"]):
         st.markdown(mensaje["content"])
 
         if mensaje["role"] == "assistant":
-            turn_id = mensaje.get("turn_id", f"no_turn_{i}")
+            turn_number = mensaje.get("turn_number", 0)
+            unique_id = f"{chat_activo['nombre']}_{turn_number}_{i}"
 
-            if mensaje.get("feedback") is None:
-                rating_key = f"rating_{chat_activo['nombre']}_{turn_id}"
-                comment_key = f"comment_{chat_activo['nombre']}_{turn_id}"
-                save_key = f"save_{chat_activo['nombre']}_{turn_id}"
-
+            if not mensaje.get("feedback_saved", False):
                 rating = st.radio(
                     "Rate this reply",
                     options=["Good", "Regular", "Bad"],
                     horizontal=True,
-                    key=rating_key
+                    key=f"rating_{unique_id}"
                 )
 
                 comment = st.text_input(
                     "Optional comment",
-                    placeholder="What sounds good or bad here?",
-                    key=comment_key
+                    key=f"comment_{unique_id}",
+                    placeholder="What sounds good or wrong here?"
                 )
 
-                if st.button("Save feedback", key=save_key):
-                    mensaje["feedback"] = rating
+                if st.button("Save feedback", key=f"save_{unique_id}"):
+                    save_feedback(
+                        session_id=st.session_state.db_session_id,
+                        turn_number=turn_number,
+                        rating=rating,
+                        comment=comment
+                    )
+                    mensaje["feedback_saved"] = True
                     mensaje["feedback_comment"] = comment
-                    guardar_feedback_csv(chat_activo, mensaje, rating, comment)
+                    mensaje["feedback_rating"] = rating
                     st.success("Feedback saved")
                     st.rerun()
             else:
-                st.caption(f"Saved feedback: {mensaje['feedback']}")
+                st.caption(f"Saved feedback: {mensaje.get('feedback_rating', '-')}")
                 if mensaje.get("feedback_comment"):
                     st.caption(f"Comment: {mensaje['feedback_comment']}")
 
 
 # ----------------------------
-# Input de chat
+# Chat input
 # ----------------------------
 texto_usuario = st.chat_input(
-    f"Escribe como {chat_activo['nombre']}..."
+    f"Write as {chat_activo['nombre']}..."
 )
 
 
 # ----------------------------
-# Procesamiento
+# Processing
 # ----------------------------
-if st.session_state.db_session_id is None:
-    st.session_state.db_session_id = create_test_session(
-        tester_name=st.session_state.tester_name or "anonymous",
-        platform=chat_activo["plataforma"]
-    )
 if texto_usuario and texto_usuario.strip():
+    if st.session_state.db_session_id is None:
+        st.session_state.db_session_id = create_test_session(
+            tester_name=st.session_state.tester_name or "anonymous",
+            platform=chat_activo["plataforma"]
+        )
+
     chat_activo["turn_counter"] += 1
     turn_id = chat_activo["turn_counter"]
 
-    # Save user message
+    # Save user message in UI
     chat_activo["historial"].append({
         "role": "user",
         "content": texto_usuario,
         "turn_id": turn_id
     })
 
-    # Process using this chat's own bot state
+    # Process with this chat's state
     resultado = procesar_mensaje(
         texto_usuario,
         st.session_state.faq_data,
         chat_activo["estado_bot"]
     )
-        st.session_state.turn_number_global += 1
-    
+
+    # Save turn in DB
+    st.session_state.turn_number_global += 1
+    current_turn_number = st.session_state.turn_number_global
+
     save_message_turn(
         session_id=st.session_state.db_session_id,
-        turn_number=st.session_state.turn_number_global,
+        turn_number=current_turn_number,
         user_message=texto_usuario,
         bot_messages=resultado["mensajes_respuesta"],
         idioma=resultado["idioma"],
@@ -406,19 +344,15 @@ if texto_usuario and texto_usuario.strip():
 
     chat_activo["ultimo_resultado"] = resultado
 
-    # Save bot reply as a single grouped message
-    chat_activo["historial"].append({
-        "role": "assistant",
-        "content": "\n\n".join(resultado["mensajes_respuesta"]),
-        "turn_id": turn_id,
-        "feedback": None,
-        "feedback_comment": "",
-        "user_message": texto_usuario,
-        "idioma": resultado["idioma"],
-        "categorias_detectadas": resultado["categorias_detectadas"],
-        "categorias_respondibles": resultado["categorias_respondibles"]
-    })
-
-    st.rerun()
+    # Save bot replies in UI
+    for respuesta in resultado["mensajes_respuesta"]:
+        chat_activo["historial"].append({
+            "role": "assistant",
+            "content": respuesta,
+            "turn_number": current_turn_number,
+            "feedback_saved": False,
+            "feedback_comment": "",
+            "feedback_rating": ""
+        })
 
     st.rerun()
