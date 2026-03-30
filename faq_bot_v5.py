@@ -1471,7 +1471,7 @@ def procesar_mensaje(mensaje, faq_data, estado):
             ]
         }
     
-    idioma = idioma_detectado()
+    idioma = idioma_detectado
     
     if idioma == "otro":
         return {
