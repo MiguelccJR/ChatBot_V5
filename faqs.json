@@ -1,39 +1,5 @@
 {
   "saludo": {
-    "es": {
-      "palabras": [
-        "hola",
-        "holaa",
-        "hol",
-        "ola",
-        "buenas",
-        "hey",
-        "que tal",
-        "estas ahi",
-        "sigues ahi",
-        "estas por aqui"
-      ],
-      "aperturas": [
-        "Hola",
-        "Holaa",
-        "Buenas",
-        "Hey"
-      ],
-      "cuerpos_cortos": [
-        "😊",
-        "😍",
-        "<3"
-      ],
-      "cuerpos_normales": [
-        "si, aqui estoy",
-        "si, te leo",
-        "aqui estoy"
-      ],
-      "cierres": [
-        "",
-        " 😊"
-      ]
-    },
     "en": {
       "palabras": [
         "hi",
@@ -64,58 +30,9 @@
         "",
         " 😊"
       ]
-    },
-    "ru": {
-      "palabras": [
-        "привет",
-        "прив",
-        "хай",
-        "здравствуй",
-        "здравствуйте",
-        "ты тут",
-        "ты здесь"
-      ],
-      "aperturas": [
-        "Привет",
-        "Хай",
-        "Приветик"
-      ],
-      "cuerpos_cortos": [
-        "😊",
-        "я тут",
-        "😍",
-        "<3"
-      ],
-      "cuerpos_normales": [
-        "да, я здесь",
-        "я тут",
-        "да, читаю"
-      ],
-      "cierres": [
-        "",
-        " 😊"
-      ]
     }
   },
   "precio": {
-    "es": {
-      "palabras": [
-        "precio",
-        "cuanto cuesta",
-        "cuanto cobras",
-        "que vale",
-        "coste",
-        "cuanto es",
-        "que precio tiene"
-      ],
-      "respuestas": [
-        "Depende un poco de la opcion 😊",
-        "Va un poco segun lo que busques.",
-        "Cambia segun lo que te interese ver.",
-        "Si quieres, te cuento mejor como va.",
-        "Depende bastante de la opcion, la verdad."
-      ]
-    },
     "en": {
       "palabras": [
         "price",
@@ -130,52 +47,9 @@
           "I can explain what's available, no problem.",
           "There are a few options and I can tell you more."
     ]
-    },
-    "ru": {
-      "palabras": [
-        "цена",
-        "сколько стоит",
-        "сколько",
-        "какая цена"
-      ],
-      "respuestas": [
-        "Это немного зависит от варианта 😊",
-        "Цена зависит от того, что тебя интересует.",
-        "Это зависит от выбранного варианта.",
-        "Если хочешь, могу объяснить подробнее."
-      ]
     }
   },
  "opciones": {
-  "es": {
-    "palabras": [
-      "opciones",
-      "que ofreces",
-      "que contenido hay",
-      "que puedo ver",
-      "que tienes disponible",
-      "que opciones hay",
-      "que tienes para ver",
-      "que tienes",
-      "que cosas tienes",
-      "quiero ver tu contenido",
-      "quiero ver lo que tienes",
-      "quiero ver que tienes",
-      "videos",
-      "fotos",
-      "tienes packs",
-      "que packs tienes",
-      "contenido",
-      "vendes packs"
-    ],
-    "respuestas": [
-      "Hay varias opciones disponibles 😊",
-      "Si quieres, te cuento un poco lo que hay.",
-      "Tengo varias cosas y depende de lo que te interese más.",
-      "Puedo explicarte lo que hay disponible sin problema.",
-      "Si quieres, te digo un poco mejor qué opciones hay."
-    ]
-  },
   "en": {
     "palabras": [
       "options",
@@ -205,46 +79,9 @@
       "I can explain what's available, no problem.",
       "There are a few options and I can tell you more."
     ]
-  },
-  "ru": {
-    "palabras": [
-      "варианты",
-      "что есть",
-      "что ты предлагаешь",
-      "что можно посмотреть",
-      "что доступно",
-      "какие варианты",
-      "хочу посмотреть твой контент",
-      "хочу посмотреть что у тебя есть",
-      "видео",
-      "фото",
-      "паки"
-    ],
-    "respuestas": [
-      "Есть несколько вариантов 😊",
-      "Если хочешь, могу рассказать, что есть.",
-      "У меня есть разные варианты, зависит от того, что тебе интересно.",
-      "Могу спокойно объяснить, что доступно."
-    ]
   }
 },
   "disponibilidad": {
-    "es": {
-      "palabras": [
-        "estas libre",
-        "estas disponible",
-        "puedes hablar",
-        "estas conectada",
-        "estas por aqui"
-      ],
-      "respuestas": [
-        "Si, estoy por aqui 😊",
-        "Ahora mismo estoy por aqui, aunque puedo tardar un poquito.",
-        "Te leo en cuanto tenga un rato.",
-        "Estoy por aqui, pero puede que tarde un poco en responder.",
-        "Ahora mismo voy un poco liada, pero te contesto en cuanto pueda."
-      ]
-    },
     "en": {
       "palabras": [
         "are you free",
@@ -263,22 +100,6 @@
         "I'll read you as soon as I have a moment.",
         "I'm around, but I may reply a bit later.",
         "I'm a little busy right now, but I'll reply as soon as I can."
-      ]
-    },
-    "ru": {
-      "palabras": [
-        "ты свободна",
-        "ты доступна",
-        "можешь поговорить",
-        "ты онлайн",
-        "ты тут",
-        "ты здесь"
-      ],
-      "respuestas": [
-        "Да, я здесь 😊",
-        "Сейчас я тут, но могу отвечать не сразу.",
-        "Как будет минутка, отвечу.",
-        "Я онлайн, но могу немного задержаться с ответом."
       ]
     }
   },
@@ -301,22 +122,6 @@
     }
   },
   "tiempo_respuesta": {
-    "es": {
-      "palabras": [
-        "tardas mucho",
-        "cuando respondes",
-        "por que no contestas",
-        "sigues ahi",
-        "me vas a responder",
-        "porque tardas tanto",
-        "por que tardas tanto"
-      ],
-      "respuestas": [
-        "A veces voy con algo de lio, pero respondo en cuanto puedo.",
-        "A veces tardo un poquito, pero si respondo.",
-        "Gracias por la paciencia, en cuanto pueda te contesto."
-      ]
-    },
     "en": {
       "palabras": [
         "why are you not replying",
@@ -331,47 +136,9 @@
         "I may take a little while sometimes, but I'll answer.",
         "Thanks for being patient, I'll reply as soon as I can."
       ]
-    },
-    "ru": {
-    "palabras": [
-      "почему так долго отвечаешь",
-      "ты ответишь",
-      "почему не отвечаешь"
-    ],
-    "respuestas": [
-      "Иногда я занята, но отвечаю, как только могу.",
-      "Иногда могу отвечать не сразу, но обязательно отвечу.",
-      "Спасибо за терпение, отвечу, как только смогу."
-    ]
-  }
-},
-  "pregunta_venta": {
-  "es": {
-    "palabras": [
-      "vendes fotos",
-      "vendes contenido",
-      "tienes fotos",
-      "vendes imagenes",
-      "vendes packs",
-      "quiero fotos",
-      "quiero ver fotos",
-      "quiero contenido",
-      "quiero ver contenido",
-      "quiero ver tu contenido",
-      "quiero ver lo que tienes",
-      "y videos",
-      "y fotos",
-      "y packs",
-      "vendes packs",
-      "y pack de fotos"
-    ],
-    "respuestas": [
-      "Sí, hay distintas opciones disponibles.",
-      "Sí, tengo varias opciones y te puedo contar un poco.",
-      "Sí, puedo explicarte qué opciones hay.",
-      "Sí, si quieres te cuento lo que hay disponible."
-    ]
+    }
   },
+  "pregunta_venta": {
   "en": {
     "palabras": [
       "do you sell pictures",
@@ -399,45 +166,9 @@
       "I do have content options, yes.",
       "Yes, I can tell you what’s available."
     ]
-  },
-  "ru": {
-    "palabras": [
-      "ты продаешь фото",
-      "у тебя есть фото",
-      "ты продаешь контент",
-      "есть фото",
-      "хочу фото",
-      "хочу посмотреть контент",
-      "хочу посмотреть что у тебя есть",
-      "и видео",
-      "и фото",
-      "и паки",
-      "и пак фото"
-    ],
-    "respuestas": [
-      "Да, у меня есть разные варианты.",
-      "Да, есть несколько вариантов, могу рассказать подробнее.",
-      "Да, могу объяснить, что доступно.",
-      "Да, я могу рассказать, что есть."
-    ]
   }
 },
   "pregunta_precio_detallada": {
-    "es": {
-      "palabras": [
-        "que precios tienes",
-        "precios",
-        "cuanto valen las fotos",
-        "cuanto valen los packs"
-      ],
-      "respuestas": [
-        "Los precios dependen un poco del tipo, pero te puedo explicar las opciones.",
-         "Hay distintas opciones y precios segun lo que busques.",
-         "Si quieres, te cuento mejor las opciones y precios.",
-         "Puedo explicarte precios y lo que hay disponible.",
-         "Si quieres, te doy una idea general de precios."
-     ]
-    },
     "en": {
       "palabras": [
         "what are your prices",
@@ -451,39 +182,9 @@
         "There are different options and prices depending on what you're looking for.",
         "If you want, I can tell you more about the pricing."
       ]
-    },
-    "ru": {
-      "palabras": [
-        "какие у тебя цены",
-        "какая стоимость",
-        "сколько стоят фото",
-        "сколько за фото"
-      ],
-      "respuestas": [
-        "Цена зависит от типа, но я могу объяснить варианты.",
-        "Есть разные варианты и цены, зависит от того, что тебе интересно.",
-        "Если хочешь, могу подробнее рассказать про цены."
-      ]
     }
   },
   "preferencia_contenido": {
-  "es": {
-    "palabras": [
-      "quiero algo mas sexy",
-      "quiero algo mas atrevido",
-      "quiero algo mas spicy",
-      "quiero algo asi",
-      "quiero fotos sexy",
-      "quiero fotos mas atrevidas",
-      "quiero ver algo sexy"
-    ],
-    "respuestas": [
-      "Entiendo. Si quieres, te puedo contar qué tipo de opciones hay.",
-      "Vale, puedo orientarte con las opciones disponibles.",
-      "Si quieres, te explico un poco lo que hay.",
-      "Te puedo decir qué tipo de opciones hay disponibles."
-    ]
-  },
   "en": {
     "palabras": [
       "i want sexy ones",
@@ -500,20 +201,5 @@
       "I understand. If you want, I can explain what’s available.",
       "I can tell you the kind of options that are available."
     ]
-  },
-  "ru": {
-    "palabras": [
-      "хочу что то более сексуальное",
-      "хочу что то поинтереснее",
-      "хочу что то погорячее",
-      "хочу более откровенные фото"
-    ],
-    "respuestas": [
-      "Поняла. Если хочешь, могу рассказать, какие есть варианты.",
-      "Хорошо, могу сориентировать по доступным вариантам.",
-      "Если хочешь, я могу объяснить, что есть.",
-      "Могу рассказать, какие варианты доступны."
-    ]
-    }
   }
 }
