@@ -38,7 +38,7 @@ def normalizar_texto_extendido(texto):
     texto = normalizar_texto(texto)
 
     reemplazos = {
-    " wtff ": " what the fuck,
+    " wtf ": " what the fuck",
     " u ": " you ",
     " ur ": " your / you're ",
     " r ": " are ",
