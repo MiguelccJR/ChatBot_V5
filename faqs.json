@@ -283,22 +283,6 @@
     }
   },
   "idioma": {
-    "es": {
-      "palabras": [
-        "hablas ingles",
-        "hablas español",
-        "hablas ruso",
-        "idioma",
-        "ingles",
-        "español",
-        "ruso"
-      ],
-      "respuestas": [
-        "Si, puedo hablar en español, ingles o ruso.",
-        "Puedo responder en español, ingles y ruso sin problema.",
-        "Si, manejo español, ingles y ruso."
-      ]
-    },
     "en": {
       "palabras": [
         "do you speak english",
@@ -313,29 +297,6 @@
         "Yes, I can speak in English, Spanish or Russian.",
         "I can reply in English, Spanish and Russian.",
         "Yes, I can speak English, Spanish and Russian."
-      ]
-    },
-    "ru": {
-      "palabras": [
-        "ты говоришь по английски",
-        "ты говоришь по испански",
-        "ты говоришь по русски",
-        "язык",
-        "английский",
-        "испанский",
-        "русский",
-        "ты говоришь по английски",
-        "по английски",
-        "по русски",
-        "по испански",
-        "английский",
-        "русский",
-        "испанский"
-      ],
-      "respuestas": [
-        "Да, я могу говорить на русском, английском и испанском.",
-        "Я могу отвечать на русском, английском и испанском.",
-        "Да, я говорю на русском, английском и испанском."
       ]
     }
   },
