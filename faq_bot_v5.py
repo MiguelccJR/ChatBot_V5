@@ -38,108 +38,7 @@ def normalizar_texto_extendido(texto):
     texto = normalizar_texto(texto)
 
     reemplazos = {
-    " q ": " que ",
-    " x ": " por ",
-    " toy ": "estoy",
-    " aki toy ":"aqui estoy",
-    " xa ": " para ",
-    " pa ": " para ",
-    " pq ": " porque ",
-    " xq ": " porque ",
-    " porq ": " porque ",
-    " tmb ": " también ",
-    " tb ": " también ",
-    " tmp ": " tampoco / tiempo, según contexto ",
-    " d ": " de ",
-    " dl ": " del ",
-    " alq ": " algo ",
-    " algn ": " algún ",
-    " algna ": " alguna ",
-    " algns ": " algunos ",
-    " algnas ": " algunas ",
-    " ns ": " no sé ",
-    " npi ": " ni idea ",
-    " ntp ": " no te preocupes ",
-    " tranqui ": " tranquilo / tranquila ",
-    " finde ": " fin de semana ",
-    " msj ": " mensaje ",
-    " priv ": " privado ",
-    " insta ": " Instagram ",
-    " tlf ": " teléfono ",
-    " num ": " número ",
-    " nrml ": " normal ",
-    " bn ": " bien ",
-    " bno ": " bueno ",
-    " weno ": " bueno ",
-    " ola ": " hola ",
-    " adio ": " adiós ",
-    " toi ": " estoy ",
-    " tas ": " estás ",
-    " tamos ": " estamos ",
-    " to ": " todo ",
-    " toa ": " toda ",
-    " tos ": " todos ",
-    " tas bien? ": " ¿estás bien? ",
-    " qtal ": " qué tal ",
-    " q tl ": " qué tal ",
-    " cm ": " como ",
-    " cmo ": " como ",
-    " dd ": " donde ",
-    " dnd ": " donde ",
-    " mñn ": " mañana ",
-    " mañn ": " mañana ",
-    " ayer ": " ayer ",
-    " dsp ": " después ",
-    " dsps ": " después ",
-    " depues ": " después ",
-    " antes ": " antes ",
-    " pqno ": " por qué no ",
-    " pk ": " porque / por qué, según contexto ",
-    " xfa ": " por favor ",
-    " porfa ": " por favor ",
-    " plis ": " por favor ",
-    " grax ": " gracias ",
-    " de nada ": " de nada ",
-    " nqv ": " no quiero verte / nada que ver, según contexto ",
-    " nqv? ": " nada que ver? ",
-    " tq ": " te quiero ",
-    " tkm ": " te quiero mucho ",
-    " tqm ": " te quiero mucho ",
-    " tm ": " te amo / también, según contexto ",
-    " bb ": " bebé ",
-    " nena ": " nena ",
-    " nene ": " nene ",
-    " wapa ": " guapa ",
-    " wap@ ": " guapo / guapa ",
-    " salu2 ": " saludos ",
-    " bss ": " besos ",
-    " tk ": " te quiero ",
-    " aki ": " aquí ",
-    " ai ": " ahí ",
-    " ay ": " hay / ay, según contexto ",
-    " stoy ": " estoy ",
-    " abla ": " habla ",
-    " acer ": " hacer ",
-    " ke ": " que ",
-    " kase ": " qué haces ",
-    " asias ": " gracias ",
-    " sip ": " sí ",
-    " nop ": " no ",
-    " sep ": " sí ",
-    " nel ": " no ",
-    " ok ": " vale / de acuerdo ",
-    " oki ": " vale ",
-    " okis ": " vale ",
-    " va ": " vale ",
-    " vdd ": " verdad ",
-    " vrdd ": " verdad ",
-    " ntc ": " no te creas ",
-    " nmms ": " no me digas / no inventes, uso coloquial ",
-    " alv ": " a la verga, muy coloquial ",
-    " hdp ": " hijo de puta ",
-    " ptm ": " puta madre ",
-    " wtff ": " what the fuck / qué cojones ",
-    
+    " wtff ": " what the fuck,
     " u ": " you ",
     " ur ": " your / you're ",
     " r ": " are ",
@@ -276,173 +175,7 @@ def normalizar_texto_extendido(texto):
     " wont ": " will not ",
     " dont ": " do not ",
     " doesnt ": " does not ",
-    " didnt ": " did not ",
-    
-    " спс ": " спасибо ",
-    " хай ": " привет ",
-    " хз ": " не знаю ",
-    " пасиб ": " спасибо ",
-    " хай ": " привет ",
-    " хз ": " не знаю ",
-    " пж ": " пожалуйста ",
-    " плиз ": " пожалуйста ",
-    " пож ": " пожалуйста ",
-    " прив ": " привет ",
-    " хай ": " привет ",
-    " даров ": " здорово / hola ",
-    " пон ": " понял / понятно ",
-    " непон ": " не понял ",
-    " ок ": " хорошо / vale ",
-    " окей ": " хорошо / vale ",
-    " нзч ": " не за что ",
-    " не ": " нет ",
-    " лан ": " ладно ",
-    " ладн ": " ладно ",
-    " ща ": " сейчас ",
-    " сча ": " сейчас ",
-    " щас ": " сейчас ",
-    " чз ": " через ",
-    " чел ": " человек ",
-    " челик ": " человек / tipo ",
-    " тя ": " тебя ",
-    " те ": " тебе ",
-    " мб ": " может быть ",
-    " мож ": " может ",
-    " хз ": " не знаю ",
-    " хзч ": " не знаю что ",
-    " хд ": " смех / xd ",
-    " лол ": " смешно / LOL ",
-    " ору ": " me parto / me río mucho ",
-    " жиза ": " жизненно ",
-    " крч ": " короче ",
-    " кароч ": " короче ",
-    " всм ": " в смысле ",
-    " ппц ": " капец / qué locura ",
-    " капец ": " qué locura / vaya tela ",
-    " оч ": " очень ",
-    " очн ": " очень ",
-    " норм ": " нормально ",
-    " нормас ": " нормально / guay ",
-    " нормик ": " normal / bien ",
-    " збс ": " заебись / muy bien, vulgar ",
-    " найс ": " хорошо / nice ",
-    " жесть ": " una locura / heavy ",
-    " имба ": " muy bueno / roto ",
-    " топ ": " genial / top ",
-    " рил ": " реально ",
-    " пруф ": " доказательство / proof ",
-    " пруфы ": " доказательства ",
-    " го ": " давай / let's go ",
-    " гг ": " good game / fin ",
-    " изи ": " легко ",
-    " лив ": " выйти / leave ",
-    " афк ": " away from keyboard ",
-    " кд ": " cooldown ",
-    " катка ": " partida ",
-    " тим ": " команда / team ",
-    " сори ": " извини ",
-    " сорян ": " извини ",
-    " споки ": " спокойной ночи ",
-    " спок ": " спокойной ночи ",
-    " др ": " день рождения ",
-    " с др ": " с днём рождения ",
-    " днюха ": " cumpleaños ",
-    " тян ": " chica ",
-    " кун ": " chico ",
-    " кринж ": " vergüenza ajena / cringe ",
-    " вайб ": " ambiente / vibe ",
-    " вайбик ": " ambientillo / vibe ",
-    " токс ": " tóxico ",
-    " токсик ": " tóxico ",
-    " душн ": " pesado / aburrido ",
-    " душнила ": " pesado / aburrido ",
-    " жду ": " espero ",
-    " пас ": " paso / no quiero ",
-    " пох ": " me da igual, vulgar ",
-    " похер ": " me da igual, vulgar ",
-    " похуй ": " me da igual, muy vulgar ",
-    " блин ": " jo / damn ",
-    " бл ": " блин / jo ",
-    " пздц ": " desastre / muy fuerte, muy vulgar ",
-    " емае ": " madre mía ",
-    " ёмаё ": " madre mía ",
-    " лс ": " mensajes privados ",
-    " в лс ": " por privado ",
-    " пм ": " mensaje privado ",
-    " инет ": " internet ",
-    " инста ": " Instagram ",
-    " тг ": " Telegram ",
-    " вк ": " VK ",
-    " ава ": " avatar / foto de perfil ",
-    " авка ": " avatar / foto de perfil ",
-    " фотка ": " foto ",
-    " видос ": " vídeo ",
-    " видик ": " vídeo ",
-    " видюха ": " vídeo / tarjeta gráfica, según contexto ",
-    " доки ": " documentos ",
-    " инфа ": " información ",
-    " хата ": " casa / piso ",
-    " кв ": " квартира / apartamento ",
-    " вид ": " внешний вид / aspecto, según contexto ",
-    " чд ": " что делаешь ",
-    " чдд ": " что делаешь ",
-    " чзх ": " что за хрень ",
-    " чё ": " что ",
-    " че ": " что ",
-    " че как ": " qué tal / cómo va ",
-    " ты где ": " donde estás ",
-    " мда ": " vaya / pues sí ",
-    " ага ": " sí / ajá ",
-    " угу ": " sí ",
-    " неа ": " no ",
-    " да ": " sí ",
-    " канеш ": " конечно ",
-    " конеш ": " конечно ",
-    " ясн ": " ясно ",
-    " яснo ": " ясно ",
-    " понл ": " понял ",
-    " поняла ": " entendí ",
-    " хех ": " jeje ",
-    " ахах ": " jajaja ",
-    " аххах ": " jajaja ",
-    " ля ": " wow / jo ",
-    " хехе ": " jeje ",
-    " мимими ": " cute / tierno ",
-    " ня ": " mono / cute ",
-    " няш ": " mono / adorable ",
-    " няшка ": " persona adorable ",
-    " лю ": " люблю / amo ",
-    " лю тя ": " te quiero ",
-    " люблю ": " amo / quiero ",
-    " об ": " об этом / sobre eso, según contexto ",
-    " чутка ": " un poco ",
-    " ток ": " только ",
-    " прост ": " просто ",
-    " пжлст ": " пожалуйста ",
-    " пжста ": " пожалуйста ",
-    " спокн ": " спокойной ночи ",
-    " челикс ": " tipo / persona ",
-    " работ ": " работа / trabajo ",
-    " учёба ": " estudios ",
-    " универ ": " universidad ",
-    " шара ": " gratis / fácil, según contexto ",
-    " домашка ": " deberes ",
-    " дз ": " домашнее задание / tarea ",
-    " преп ": " profesor ",
-    " одногр ": " compañero de grupo ",
-    " мес ": " mes ",
-    " мин ": " minuto ",
-    " сек ": " segundo ",
-    " км ": " kilómetro ",
-    " щ ": " сейчас, muy abreviado ",
-    " пх ": " me da igual / paso, según contexto ",
-    " омг ": " о боже / oh my god ",
-    " имхо ": " en mi opinión ",
-    " лмк ": " дай знать / let me know ",
-    " бб ": " пока / bye-bye ",
-    " ку ": " привет ",
-    " пасиба ": " спасибо ",
-    " спасиб ": " спасибо "
+    " didnt ": " did not "
     }
 
     texto = f" {texto} "
@@ -454,71 +187,29 @@ def normalizar_texto_extendido(texto):
 
 def detectar_idioma(texto):
     """
-    Detecta si el mensaje parece español, inglés, ruso o desconocido.
+    Detecta si el mensaje parece inglés o no.
     """
-    palabras_es = [
-    "hola", "holaa", "hol", "ola", "buenas", "que", "como", "estas",
-    "precio", "opciones", "hablas", "contenido", "puedes", "quiero",
-    "tienes", "cuanto", "respondes", "responder", "por aqui",
-    "que tal", "sigues ahi", "me vas a responder",
-    "vendes", "fotos", "packs", "fotos", "y", "video", "videos",
-    "foto", "fotos", "pack", "packs"
-    ]
-
     palabras_en = [
-    "hi", "hello", "hey", "how", "price", "options",
-    "content", "can", "speak", "want", "what",
-    "you", "your", "offer", "have", "are", "there",
-    "cost", "will you answer", "why are you not replying",
-    "russian", "reply", "answer", "takes", "long",
-    "available", "free", "pictures", "photos", "and",
-    "video", "videos", "photo", "photos", "pack", "packs"
+        "hi", "hello", "hey", "how", "price", "pricing", "cost",
+        "what", "options", "content", "available", "free", "talk",
+        "english", "language", "reply", "answer", "still there",
+        "sell", "picture", "pictures", "pics", "photo", "photos",
+        "video", "videos", "pack", "packs", "want", "see", "show",
+        "can", "you", "your", "do", "are", "have", "offer",
+        "what can i see", "what do you have", "do you sell",
+        "how much", "how much is it", "what are your prices",
+        "are you available", "are you free", "can you talk",
+        "do you speak english"
     ]
 
-    palabras_ru = [
-    "привет", "прив", "хай", "здравствуй", "здравствуйте",
-    "цена", "цены", "сколько", "стоит", "стоимость",
-    "варианты", "вариант", "что есть", "что можно",
-    "испански","ты", "тебя", "здесь", "тут", "ответишь", "отвечаешь",
-    "контент", "фото", "говоришь", "можешь",
-    "почему", "долго", "доступна", "свободна",
-    "сексуальное", "поинтереснее", "погорячее",
-    "какие", "не знаю","привет", "прив", "хай", "здравствуй", "здравствуйте",
-    "цена", "цены", "сколько", "стоит", "стоимость",
-    "варианты", "вариант", "что есть", "что можно",
-    "испански","ты", "тебя", "здесь", "тут", "ответишь", "отвечаешь",
-    "контент", "фото", "говоришь", "можешь",
-    "почему", "долго", "доступна", "свободна",
-    "сексуальное", "поинтереснее", "погорячее",
-    "какие", "не знаю", "онлайн","и", "видео", "фото", "пак", "паки"
-    ]
-
-    puntuacion_es = 0
     puntuacion_en = 0
-    puntuacion_ru = 0
-
-    for palabra in palabras_es:
-        if palabra in texto:
-            puntuacion_es += 1
 
     for palabra in palabras_en:
         if palabra in texto:
             puntuacion_en += 1
 
-    for palabra in palabras_ru:
-        if palabra in texto:
-            puntuacion_ru += 1
-
-    puntuaciones = {
-        "es": puntuacion_es,
-        "en": puntuacion_en,
-        "ru": puntuacion_ru
-    }
-
-    mejor_idioma = max(puntuaciones, key=puntuaciones.get)
-
-    if puntuaciones[mejor_idioma] > 0:
-        return mejor_idioma
+    if puntuacion_en > 0:
+        return "en"
 
     return "otro"
 def crear_estado_conversacion():
@@ -1394,24 +1085,9 @@ def procesar_mensaje(mensaje, faq_data, estado):
     # Detect base language
     idioma_detectado = detectar_idioma(mensaje_normalizado)
 
-    # Simple language-only query
-    idioma_simple = detectar_consulta_idioma_simple(mensaje_normalizado)
-    if idioma_simple:
-        respuesta = generar_respuesta("idioma", idioma_simple, mensaje_normalizado, faq_data, usados=[])
-        return {
-            "idioma": idioma_simple,
-            "categorias_detectadas": [{"categoria": "idioma", "puntuacion": 1, "confianza": "media"}],
-            "categorias_respondibles": [{"categoria": "idioma", "puntuacion": 1, "confianza": "media"}],
-            "mensajes_respuesta": [respuesta]
-        }
-
-    # Short continuation like "and videos", "y packs", "и фото"
+    # Short continuation like "and videos", "and packs"
     if es_continuacion_simple(mensaje_normalizado):
-        idioma_continuacion = (
-            idioma_detectado
-            if idioma_detectado != "otro"
-            else estado.get("ultimo_idioma", "en")
-        )
+        idioma_continuacion = "en"
 
         ultimas = estado.get("ultimas_categorias", [])
 
@@ -1469,23 +1145,23 @@ def procesar_mensaje(mensaje, faq_data, estado):
 
     if parece_texto_basura(mensaje_normalizado):
         return {
-            "idioma": "desconocido",
+            "idioma": "unknown",
             "categorias_detectadas": [],
             "categorias_respondibles": [],
             "mensajes_respuesta": [
-                "Lo siento, no he entendido bien el mensaje. ¿Puedes escribirlo de otra forma?"
+                "Sorry, I didn’t fully understand the message. Can you rephrase it?"
             ]
         }
 
     idioma = idioma_detectado
 
-    if idioma == "otro":
+    if idioma != "en":
         return {
             "idioma": "otro",
             "categorias_detectadas": [],
             "categorias_respondibles": [],
             "mensajes_respuesta": [
-                "Sorry, I can only reply in Spanish, English or Russian right now."
+                "Sorry, I can only reply in English right now."
             ]
         }
 
@@ -1496,18 +1172,9 @@ def procesar_mensaje(mensaje, faq_data, estado):
     categorias_respondibles = aplicar_contexto_a_categorias(categorias_respondibles, estado)
 
     if not categorias_respondibles:
-        if idioma == "es":
-            mensajes_respuesta = [
-                "Lo siento, no he entendido bien el mensaje. ¿Puedes escribirlo de otra forma?"
-            ]
-        elif idioma == "ru":
-            mensajes_respuesta = [
-                "Извини, я не совсем поняла сообщение. Можешь написать по-другому?"
-            ]
-        else:
-            mensajes_respuesta = [
-                "Sorry, I didn’t fully understand the message. Can you rephrase it?"
-            ]
+        mensajes_respuesta = [
+            "Sorry, I didn’t fully understand the message. Can you rephrase it?"
+        ]
     else:
         mensajes_respuesta = construir_lista_mensajes(
             categorias_respondibles,
