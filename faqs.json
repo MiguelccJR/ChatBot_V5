@@ -184,6 +184,129 @@
       ]
     }
   },
+  "small_talk": {
+  "en": {
+    "palabras": [
+      "how are you",
+      "how's your day",
+      "how is your day",
+      "how are you doing",
+      "what are you doing",
+      "how is your day going",
+      "you okay",
+      "how have you been"
+    ],
+    "respuestas": [
+      "I'm doing good, thank you for asking 😊",
+      "My day is going well so far, how about yours?",
+      "I'm good, just here for a bit. How are you?",
+      "Doing pretty well, thank you. What about you?",
+      "I'm alright, thanks for asking."
+    ]
+  }
+},
+"personal_question": {
+  "en": {
+    "palabras": [
+      "what do you like to do when you're not online",
+      "what do you like to do when you are not online",
+      "what do you do for fun",
+      "tell me about yourself",
+      "what do you like",
+      "what are your hobbies",
+      "what do you enjoy doing",
+      "what are you into"
+    ],
+    "respuestas": [
+      "I like keeping things relaxed and enjoying my free time when I can 😊",
+      "A little bit of this and that, depends on my mood honestly.",
+      "I enjoy simple things and a bit of fun conversation too.",
+      "I like to relax, switch off a little, and enjoy my time.",
+      "I have a few things I enjoy, maybe I’ll tell you more little by little."
+    ]
+  }
+},
+"custom_request": {
+  "en": {
+    "palabras": [
+      "do you take custom requests",
+      "do you do customs",
+      "can i request custom content",
+      "can you make custom content",
+      "do you make custom videos",
+      "are customs available",
+      "can i order something custom"
+    ],
+    "respuestas": [
+      "Yes, I do take custom requests.",
+      "I can do custom content, yes.",
+      "Yes, custom requests are possible depending on what you want.",
+      "I do offer customs, depending on the request.",
+      "Yes, I can talk about custom content if you want."
+    ]
+  }
+},
+"menu_request": {
+  "en": {
+    "palabras": [
+      "what's on your menu",
+      "whats on your menu",
+      "what do you offer",
+      "what can i get",
+      "what kind of content do you have",
+      "what do you have available",
+      "what are your options",
+      "what can i see"
+    ],
+    "respuestas": [
+      "I have different options available 😊",
+      "There are a few things available, depending on what you're looking for.",
+      "I can tell you what options are available if you want.",
+      "There are different content options, yes.",
+      "I can explain what's available and what kind of options there are."
+    ]
+  }
+},
+"tip_special_request": {
+  "en": {
+    "palabras": [
+      "can i tip for a special video",
+      "how much for a special video",
+      "can i tip you for a custom video",
+      "what if i tip extra",
+      "can i send a tip for something special",
+      "would you do it for a tip",
+      "how much with a tip"
+    ],
+    "respuestas": [
+      "That depends a little on the request, but yes, we can talk about it.",
+      "It depends on what you have in mind, honestly.",
+      "A special request would depend on the details, but I can talk it through with you.",
+      "If it's something specific, the price would depend on the request.",
+      "Yes, that would depend on exactly what you're asking for."
+    ]
+  }
+},
+"specific_request": {
+  "en": {
+    "palabras": [
+      "can you show me your",
+      "can you make a video of",
+      "can you do for me",
+      "can you wear",
+      "can you film",
+      "can you make one with my name",
+      "can you do a nurse video"
+    ],
+    "respuestas": [
+      "That would depend on the exact request.",
+      "It depends on what you have in mind, but you can tell me.",
+      "I'd need a bit more detail on that request.",
+      "That would depend on the specifics.",
+      "You can tell me exactly what you mean and I’ll see."
+    ]
+  }
+}
   "preferencia_contenido": {
   "en": {
     "palabras": [
