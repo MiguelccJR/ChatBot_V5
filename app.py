@@ -1,6 +1,7 @@
 import streamlit as st
-from faq_bot_v5 import cargar_faqs, crear_estado_conversacion, procesar_mensaje
+from faq_bot_v5 import cargar_faqs, crear_estado_conversacion, procesar_mensaje, obtener_opener
 from db import create_test_session, save_message_turn, save_feedback
+
 
 st.set_page_config(
     page_title="FAQ Bot Multi-Chat Simulator",
@@ -99,7 +100,8 @@ def inicializar_estado_app():
 
 
 inicializar_estado_app()
-
+if "suggested_oppener" not in st.session_state:
+    st.session_state.suggested_oppener = ""
 
 # ----------------------------
 # Sidebar
@@ -252,6 +254,25 @@ with st.sidebar:
 chat_activo = obtener_chat_activo()
 
 st.subheader(f"Active chat: {chat_activo['nombre']} [{chat_activo['plataforma']}]")
+
+st.markdown("### Suggested openers")
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    if st.button("Soft opener", use_container_width=True):
+        st.session_state.suggested_opener = obtener_opener("opener_soft", st.session_state.faq_data) or ""
+
+with col2:
+    if st.button("Flirty opener", use_container_width=True):
+        st.session_state.suggested_opener = obtener_opener("opener_flirty", st.session_state.faq_data) or ""
+
+with col3:
+    if st.button("Upsell opener", use_container_width=True):
+        st.session_state.suggested_opener = obtener_opener("opener_upsell", st.session_state.faq_data) or ""
+
+if st.session_state.suggested_opener:
+    st.info(st.session_state.suggested_opener)
 
 for i, mensaje in enumerate(chat_activo["historial"][-40:]):
     with st.chat_message(mensaje["role"]):

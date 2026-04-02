@@ -13,6 +13,19 @@ def tokenizar_texto(texto):
 def similitud(a, b):
     return SequenceMatcher(None, a, b).ratio()
 
+def obtener_opener(tipo, faq_data):
+    """
+    Devuelve un opener sugerido del tipo indicado.
+    """
+    try:
+        opciones = faq_data["openers"]["en"][tipo]
+    except KeyError:
+        return None
+
+    if not opciones:
+        return None
+
+    return random.choice(opciones)
 
 def palabra_match_flexible(palabra_clave, tokens):
     """
