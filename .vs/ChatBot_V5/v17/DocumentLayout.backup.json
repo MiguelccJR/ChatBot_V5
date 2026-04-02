@@ -34,8 +34,7 @@
               "RelativeToolTip": "faqs.json",
               "ViewState": "AgIAAD0BAAAAAAAAAAAgwEkBAAAGAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
-              "WhenOpened": "2026-04-02T13:43:55.123Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-02T13:43:55.123Z"
             },
             {
               "$type": "Document",
@@ -45,7 +44,7 @@
               "RelativeDocumentMoniker": "app.py",
               "ToolTip": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\app.py",
               "RelativeToolTip": "app.py",
-              "ViewState": "AgIAAPEAAAAAAAAAAADwvxIBAAAuAAAAAAAAAA==",
+              "ViewState": "AgIAAO0BAAAAAAAAAAAAwBUCAAAOAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
               "WhenOpened": "2026-04-01T19:21:25.485Z",
               "EditorCaption": ""
@@ -58,7 +57,7 @@
               "RelativeDocumentMoniker": "faq_bot_v5.py",
               "ToolTip": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\faq_bot_v5.py",
               "RelativeToolTip": "faq_bot_v5.py",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA4AAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAABUAAAAAAAAAAAAAAFMBAAAhAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
               "WhenOpened": "2026-04-01T19:07:32.863Z",
               "EditorCaption": ""

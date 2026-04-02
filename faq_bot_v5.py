@@ -339,6 +339,7 @@ def crear_estado_conversacion():
         "ultimas_categorias": [],
         "ultimas_respuestas": [],
         "num_mensajes": 0,
+        "ultimo_opener": None,
         "ultimo_idioma": None
     }
 def detectar_consulta_idioma_simple(texto):

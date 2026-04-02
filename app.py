@@ -99,9 +99,119 @@ def inicializar_estado_app():
         st.session_state.chat_activo = list(st.session_state.chats.keys())[0]
 
 
+import streamlit as st
+from faq_bot_v5 import (
+    cargar_faqs,
+    crear_estado_conversacion,
+    procesar_mensaje,
+    obtener_opener,
+)
+from db import create_test_session, save_message_turn, save_feedback
+
+st.set_page_config(
+    page_title="FAQ Bot Multi-Chat Simulator",
+    layout="wide"
+)
+
+st.title("Internal bot simulator")
+st.caption("Local testing / simple questions")
+
+
+# ----------------------------
+# Chat helpers
+# ----------------------------
+def crear_chat(nombre=None, plataforma="test"):
+    chat_id = f"chat_{st.session_state.next_chat_id:03d}"
+    st.session_state.next_chat_id += 1
+
+    if nombre is None:
+        nombre = f"user_{chat_id.split('_')[-1]}"
+
+    return chat_id, {
+        "nombre": nombre,
+        "plataforma": plataforma,
+        "historial": [],
+        "estado_bot": crear_estado_conversacion(),
+        "ultimo_resultado": None,
+        "score": 0,
+        "etiquetas": [],
+        "turn_counter": 0
+    }
+
+
+def obtener_chat_activo():
+    return st.session_state.chats[st.session_state.chat_activo]
+
+
+def reiniciar_chat_activo():
+    chat = obtener_chat_activo()
+    chat["historial"] = []
+    chat["estado_bot"] = crear_estado_conversacion()
+    chat["ultimo_resultado"] = None
+    chat["score"] = 0
+    chat["etiquetas"] = []
+    chat["turn_counter"] = 0
+
+
+def eliminar_chat_activo():
+    chat_id = st.session_state.chat_activo
+    if len(st.session_state.chats) <= 1:
+        st.warning("At least one chat must remain.")
+        return
+
+    del st.session_state.chats[chat_id]
+    st.session_state.chat_activo = list(st.session_state.chats.keys())[0]
+
+
+def recargar_faqs():
+    st.session_state.faq_data = cargar_faqs()
+
+
+# ----------------------------
+# Global app initialization
+# ----------------------------
+def inicializar_estado_app():
+    if "faq_data" not in st.session_state:
+        st.session_state.faq_data = cargar_faqs()
+
+    if "chats" not in st.session_state:
+        st.session_state.chats = {}
+
+    if "next_chat_id" not in st.session_state:
+        st.session_state.next_chat_id = 1
+
+    if "chat_activo" not in st.session_state:
+        st.session_state.chat_activo = None
+
+    if "mostrar_debug" not in st.session_state:
+        st.session_state.mostrar_debug = True
+
+    if "tester_name" not in st.session_state:
+        st.session_state.tester_name = ""
+
+    if "db_session_id" not in st.session_state:
+        st.session_state.db_session_id = None
+
+    if "turn_number_global" not in st.session_state:
+        st.session_state.turn_number_global = 0
+
+    if "suggested_opener" not in st.session_state:
+        st.session_state.suggested_opener = ""
+
+    if "suggested_opener_type" not in st.session_state:
+        st.session_state.suggested_opener_type = ""
+
+    if not st.session_state.chats:
+        chat_id, chat_data = crear_chat(nombre="user_001", plataforma="test")
+        st.session_state.chats[chat_id] = chat_data
+        st.session_state.chat_activo = chat_id
+
+    if st.session_state.chat_activo not in st.session_state.chats:
+        st.session_state.chat_activo = list(st.session_state.chats.keys())[0]
+
+
 inicializar_estado_app()
-if "suggested_oppener" not in st.session_state:
-    st.session_state.suggested_oppener = ""
+
 
 # ----------------------------
 # Sidebar
@@ -262,17 +372,62 @@ col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("Soft opener", use_container_width=True):
         st.session_state.suggested_opener = obtener_opener("opener_soft", st.session_state.faq_data) or ""
+        st.session_state.suggested_opener_type = "opener_soft"
 
 with col2:
     if st.button("Flirty opener", use_container_width=True):
         st.session_state.suggested_opener = obtener_opener("opener_flirty", st.session_state.faq_data) or ""
+        st.session_state.suggested_opener_type = "opener_flirty"
 
 with col3:
     if st.button("Upsell opener", use_container_width=True):
         st.session_state.suggested_opener = obtener_opener("opener_upsell", st.session_state.faq_data) or ""
+        st.session_state.suggested_opener_type = "opener_upsell"
 
 if st.session_state.suggested_opener:
     st.info(st.session_state.suggested_opener)
+
+    if st.button("Use opener in chat", use_container_width=True):
+        if st.session_state.db_session_id is None:
+            st.session_state.db_session_id = create_test_session(
+                tester_name=st.session_state.tester_name or "anonymous",
+                platform=chat_activo["plataforma"]
+            )
+
+        st.session_state.turn_number_global += 1
+        opener_turn_number = st.session_state.turn_number_global
+
+        chat_activo["historial"].append({
+            "role": "assistant",
+            "content": st.session_state.suggested_opener,
+            "turn_number": opener_turn_number,
+            "feedback_saved": False,
+            "feedback_comment": "",
+            "feedback_rating": ""
+        })
+
+        save_message_turn(
+            session_id=st.session_state.db_session_id,
+            turn_number=opener_turn_number,
+            user_message="[OPENER_SENT]",
+            bot_messages=[st.session_state.suggested_opener],
+            idioma="en",
+            categorias_detectadas=[{
+                "categoria": st.session_state.suggested_opener_type,
+                "puntuacion": 1,
+                "confianza": "manual"
+            }],
+            categorias_respondibles=[{
+                "categoria": st.session_state.suggested_opener_type,
+                "puntuacion": 1,
+                "confianza": "manual"
+            }]
+        )
+
+        chat_activo["estado_bot"]["ultimo_opener"] = st.session_state.suggested_opener_type
+        st.session_state.suggested_opener = ""
+        st.session_state.suggested_opener_type = ""
+        st.rerun()
 
 for i, mensaje in enumerate(chat_activo["historial"][-40:]):
     with st.chat_message(mensaje["role"]):
