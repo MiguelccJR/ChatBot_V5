@@ -349,21 +349,27 @@ def es_continuacion_simple(texto):
 
     return any(texto.startswith(x) for x in inicios)        
 def ordenar_categorias_por_prioridad(categorias_detectadas):
-    
     """
-    Ordena las categorías según prioridad de negocio y luego por puntuación.
+    Orders categories by business priority and then by score.
     """
     prioridad = {
         "saludo": 1,
-        "opciones": 2,
-        "precio": 3,
-        "pregunta_precio_detallada": 3,
-        "pregunta_venta": 4,
-        "disponibilidad": 5,
-        "idioma": 6,
-        "tiempo_respuesta": 7,
-        "preferencia_contenido": 8
+        "small_talk": 2,
+        "personal_question": 3,
+        "menu_request": 4,
+        "opciones": 4,
+        "precio": 5,
+        "pregunta_precio_detallada": 5,
+        "pregunta_venta": 6,
+        "custom_request": 7,
+        "tip_special_request": 8,
+        "disponibilidad": 9,
+        "idioma": 10,
+        "specific_request": 11,
+        "tiempo_respuesta": 12,
+        "preferencia_contenido": 13
     }
+
     return sorted(
         categorias_detectadas,
         key=lambda x: (prioridad.get(x["categoria"], 999), -x["puntuacion"])
@@ -404,7 +410,13 @@ def calcular_confianza_multiple(categorias_detectadas, texto):
         "tiempo_respuesta",
         "pregunta_venta",
         "pregunta_precio_detallada",
-        "preferencia_contenido"
+        "preferencia_contenido",
+        "small_talk",
+        "personal_question",
+        "custom_request",
+        "menu_request",
+        "tip_special_request",
+        "specific_request"
     ]
 
     for item in categorias_detectadas:
@@ -447,7 +459,13 @@ def filtrar_categorias_respondibles(categorias_con_confianza):
         "tiempo_respuesta",
         "pregunta_venta",
         "pregunta_precio_detallada",
-        "preferencia_contenido"
+        "preferencia_contenido",
+        "small_talk",
+        "personal_question",
+        "custom_request",
+        "menu_request",
+        "tip_special_request",
+        "specific_request"
     ]
 
     respondibles = []
