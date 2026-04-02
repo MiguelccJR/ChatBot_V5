@@ -6,13 +6,6 @@ import re
 from difflib import SequenceMatcher
 from pathlib import Path
 
-def tokenizar_texto(texto):
-    return re.findall(r"[a-z0-9']+", texto.lower())
-
-
-def similitud(a, b):
-    return SequenceMatcher(None, a, b).ratio()
-
 def obtener_opener(tipo, faq_data):
     """
     Devuelve un opener sugerido del tipo indicado.
@@ -26,6 +19,15 @@ def obtener_opener(tipo, faq_data):
         return None
 
     return random.choice(opciones)
+
+def tokenizar_texto(texto):
+    return re.findall(r"[a-z0-9']+", texto.lower())
+
+
+def similitud(a, b):
+    return SequenceMatcher(None, a, b).ratio()
+
+
 
 def palabra_match_flexible(palabra_clave, tokens):
     """
