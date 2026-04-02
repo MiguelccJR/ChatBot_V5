@@ -262,6 +262,25 @@ def normalizar_texto_extendido(texto):
     " whas ": " what is ",
     " do u ": " do you ",
     " r u ": " are you ",
+    " mch ": " much ",
+    " hw ": " how ",
+    " waht ": " what ",
+    " wht ": " what ",
+    " how mch ": " how much ",
+    " speical ": " special ",
+    " speshal ": " special ",
+    " custm ": " custom ",
+    " custms ": " customs ",
+    " reqest ": " request ",
+    " reqests ": " requests ",
+    " vidoe ": " video ",
+    " vidoes ": " videos ",
+    " contnt ": " content ",
+    " availble ": " available ",
+    " avaiable ": " available ",
+    " menue ": " menu ",
+    " hows ": " how is ",
+    " whats ": " what is ",
     " can u ": " can you "
     }
 
@@ -352,11 +371,12 @@ def parece_texto_basura(texto):
 
 def clasificar_mensaje_multiple(texto, idioma, faq_data):
     """
-    Devuelve todas las categorías detectadas con su puntuación.
-    Más permisiva con faltas leves y abreviaciones.
+    Returns all detected categories with score.
+    Flexible for single keywords, stricter for full phrases.
     """
     categorias_detectadas = []
     tokens = tokenizar_texto(texto)
+    texto_normalizado_tokens = " ".join(tokens)
 
     for categoria, datos_categoria in faq_data.items():
         if idioma not in datos_categoria:
@@ -371,15 +391,15 @@ def clasificar_mensaje_multiple(texto, idioma, faq_data):
             if not clave_tokens:
                 continue
 
-            # 1 palabra -> match flexible de palabra
+            # Single keyword -> flexible match
             if len(clave_tokens) == 1:
                 if palabra_match_flexible(clave_tokens[0], tokens):
                     puntuacion += 1
 
-            # varias palabras -> match flexible de frase
+            # Full phrase -> stricter exact match after normalization
             else:
-                if frase_match_flexible(palabra, tokens):
-                    # premia un poco más frases completas
+                frase_normalizada = " ".join(clave_tokens)
+                if frase_normalizada in texto_normalizado_tokens:
                     puntuacion += 2
 
         if puntuacion > 0:
