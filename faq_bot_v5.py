@@ -47,23 +47,29 @@ def frase_match_flexible(frase, tokens):
 
     # Palabras demasiado vacías que no aportan mucho
     stopwords_suaves = {
-        "do", "you", "your", "are", "the", "a", "an", "to", "on", "i", "me"
+        "do", "you", "your", "are", "the", "a", "an", "to", "on", "i", "me",
+        "how", "what", "can", "is"
     }
 
-    palabras_importantes = [p for p in palabras if p not in stopwords_suaves]
+    # Si la frase original tiene 3 o más palabras pero al quitar stopwords
+    # se queda con menos de 2 palabras útiles, no hacemos match flexible.
+    # En esos casos exigimos coincidencia más literal.
+
+    if len(palabras) >= 3 and len(palabras_importantes) < 2:
+        return " ".join(palabras) in " ".join(tokens)
 
     if not palabras_importantes:
-        palabras_importantes = palabras
+        return False
 
     matches = 0
     for palabra in palabras_importantes:
         if palabra_match_flexible(palabra, tokens):
             matches += 1
 
-    if len(palabras_importantes) <= 2:
-        return matches == len(palabras_importantes)
+    if len(palabras_importantes) == 1:
+        return matches == 1
 
-    return matches >= max(2, len(palabras_importantes) - 1)
+    return matches >= len(palabras_importantes) - 1
 
 def cargar_faqs(nombre_archivo="faqs.json"):
     """
