@@ -3,7 +3,67 @@ import random
 import unicodedata
 import re
 
+from difflib import SequenceMatcher
 from pathlib import Path
+
+def tokenizar_texto(texto):
+    return re.findall(r"[a-z0-9']+", texto.lower())
+
+
+def similitud(a, b):
+    return SequenceMatcher(None, a, b).ratio()
+
+
+def palabra_match_flexible(palabra_clave, tokens):
+    """
+    True si la palabra aparece exacta o con una pequeña falta.
+    """
+    if palabra_clave in tokens:
+        return True
+
+    # Evitar fuzzy en palabras muy cortas para no meter ruido
+    if len(palabra_clave) < 4:
+        return False
+
+    for token in tokens:
+        if abs(len(token) - len(palabra_clave)) > 2:
+            continue
+
+        if similitud(token, palabra_clave) >= 0.84:
+            return True
+
+    return False
+
+
+def frase_match_flexible(frase, tokens):
+    """
+    Para frases tipo 'do you take custom requests' o 'what's on your menu'.
+    Exige que coincidan casi todas las palabras importantes.
+    """
+    palabras = tokenizar_texto(frase)
+
+    if not palabras:
+        return False
+
+    # Palabras demasiado vacías que no aportan mucho
+    stopwords_suaves = {
+        "do", "you", "your", "are", "the", "a", "an", "to", "on", "i", "me"
+    }
+
+    palabras_importantes = [p for p in palabras if p not in stopwords_suaves]
+
+    if not palabras_importantes:
+        palabras_importantes = palabras
+
+    matches = 0
+    for palabra in palabras_importantes:
+        if palabra_match_flexible(palabra, tokens):
+            matches += 1
+
+    if len(palabras_importantes) <= 2:
+        return matches == len(palabras_importantes)
+
+    return matches >= max(2, len(palabras_importantes) - 1)
 
 def cargar_faqs(nombre_archivo="faqs.json"):
     """
@@ -42,7 +102,6 @@ def normalizar_texto_extendido(texto):
     " u ": " you ",
     " ur ": " your / you're ",
     " r ": " are ",
-    " y ": " why ",
     " n ": " and ",
     " bc ": " because ",
     " bcz ": " because ",
@@ -130,14 +189,14 @@ def normalizar_texto_extendido(texto):
     " kinda ": " kind of ",
     " sorta ": " sort of ",
     " lotta ": " a lot of ",
-    " ya ": " you / yes, según contexto ",
+    " ya ": " yes ",
     " yep ": " yes ",
     " nope ": " no ",
     " yup ": " yes ",
     " nah ": " no ",
-    " bro ": " brother / dude ",
+    " bro ": " brother ",
     " sis ": " sister ",
-    " bae ": " babe / before anyone else ",
+    " bae ": " babe ",
     " bby ": " baby ",
     " luv ": " love ",
     " xoxo ": " kisses and hugs ",
@@ -151,8 +210,7 @@ def normalizar_texto_extendido(texto):
     " mins ": " minutes ",
     " hr ": " hour ",
     " hrs ": " hours ",
-    " app ": " application / app ",
-    " otp ": " on the phone / one true pairing, según contexto ",
+    " otp ": " on the phone ",
     " afk ": " away from keyboard ",
     " irl ": " in real life ",
     " jk ": " just kidding ",
@@ -162,11 +220,6 @@ def normalizar_texto_extendido(texto):
     " tf ": " the fuck ",
     " bs ": " bullshit ",
     " sus ": " suspicious ",
-    " flex ": " presumir / presumir algo ",
-    " lowkey ": " discretamente / un poco ",
-    " highkey ": " claramente / bastante ",
-    " legit ": " de verdad / legítimo ",
-    " vibin ": " disfrutando el momento ",
     " gonna b ": " going to be ",
     " ive ": " I have ",
     " im ": " I am ",
@@ -266,8 +319,10 @@ def parece_texto_basura(texto):
 def clasificar_mensaje_multiple(texto, idioma, faq_data):
     """
     Devuelve todas las categorías detectadas con su puntuación.
+    Más permisiva con faltas leves y abreviaciones.
     """
     categorias_detectadas = []
+    tokens = tokenizar_texto(texto)
 
     for categoria, datos_categoria in faq_data.items():
         if idioma not in datos_categoria:
@@ -277,8 +332,21 @@ def clasificar_mensaje_multiple(texto, idioma, faq_data):
         puntuacion = 0
 
         for palabra in palabras_clave:
-            if palabra in texto:
-                puntuacion += 1
+            clave_tokens = tokenizar_texto(palabra)
+
+            if not clave_tokens:
+                continue
+
+            # 1 palabra -> match flexible de palabra
+            if len(clave_tokens) == 1:
+                if palabra_match_flexible(clave_tokens[0], tokens):
+                    puntuacion += 1
+
+            # varias palabras -> match flexible de frase
+            else:
+                if frase_match_flexible(palabra, tokens):
+                    # premia un poco más frases completas
+                    puntuacion += 2
 
         if puntuacion > 0:
             categorias_detectadas.append({
