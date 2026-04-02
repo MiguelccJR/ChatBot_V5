@@ -36,25 +36,21 @@ def palabra_match_flexible(palabra_clave, tokens):
 
 
 def frase_match_flexible(frase, tokens):
-    """
-    Para frases tipo 'do you take custom requests' o 'what's on your menu'.
-    Exige que coincidan casi todas las palabras importantes.
-    """
     palabras = tokenizar_texto(frase)
 
     if not palabras:
         return False
 
-    # Palabras demasiado vacías que no aportan mucho
     stopwords_suaves = {
         "do", "you", "your", "are", "the", "a", "an", "to", "on", "i", "me",
         "how", "what", "can", "is"
     }
 
+    palabras_importantes = [p for p in palabras if p not in stopwords_suaves]
+
     # Si la frase original tiene 3 o más palabras pero al quitar stopwords
     # se queda con menos de 2 palabras útiles, no hacemos match flexible.
     # En esos casos exigimos coincidencia más literal.
-
     if len(palabras) >= 3 and len(palabras_importantes) < 2:
         return " ".join(palabras) in " ".join(tokens)
 
