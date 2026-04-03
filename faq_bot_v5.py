@@ -389,6 +389,7 @@ def clasificar_mensaje_multiple(texto, idioma, faq_data):
     """
     Returns all detected categories with score.
     Flexible for single keywords, stricter for full phrases.
+    Ignores sections like 'openers' that are not normal FAQ categories.
     """
     categorias_detectadas = []
     tokens = tokenizar_texto(texto)
@@ -398,7 +399,16 @@ def clasificar_mensaje_multiple(texto, idioma, faq_data):
         if idioma not in datos_categoria:
             continue
 
-        palabras_clave = datos_categoria[idioma]["palabras"]
+        datos_idioma = datos_categoria[idioma]
+
+        # Skip non-standard blocks such as "openers"
+        if not isinstance(datos_idioma, dict):
+            continue
+
+        if "palabras" not in datos_idioma:
+            continue
+
+        palabras_clave = datos_idioma["palabras"]
         puntuacion = 0
 
         for palabra in palabras_clave:
