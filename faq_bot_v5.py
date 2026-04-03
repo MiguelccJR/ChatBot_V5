@@ -296,6 +296,13 @@ def normalizar_texto_extendido(texto):
     " menue ": " menu ",
     " hows ": " how is ",
     " whats ": " what is ",
+    " honney " : " honey ",
+    " honeyy " : " honey ",
+    " chillin " : " chilling ",
+    " jus " : " just ",
+    " jst " : " just ",
+    " wrking ": " working ",
+    " wrk " : " work ",
     " can u ": " can you "
     }
 
@@ -1245,8 +1252,75 @@ def elegir_mejor_respuesta(respuestas_posibles, usados, idioma):
 
     return random.choice(mejores)
 
+def procesar_respuesta_a_opener(mensaje_normalizado, faq_data, estado):
+    ultimo_opener = estado.get("ultimo_opener")
+
+    mapa = {
+        "opener_soft": "reply_to_soft_opener",
+        "opener_flirty": "reply_to_flirty_opener",
+        "opener_upsell": "reply_to_upsell_opener"
+    }
+
+    categoria = mapa.get(ultimo_opener)
+    if not categoria:
+        return None
+
+    if categoria not in faq_data or "en" not in faq_data[categoria]:
+        return None
+
+    datos_categoria = faq_data[categoria]["en"]
+    if "palabras" not in datos_categoria:
+        return None
+
+    palabras_clave = datos_categoria["palabras"]
+    tokens = tokenizar_texto(mensaje_normalizado)
+    texto_normalizado_tokens = " ".join(tokens)
+    puntuacion = 0
+
+    for palabra in palabras_clave:
+        clave_tokens = tokenizar_texto(palabra)
+
+        if not clave_tokens:
+            continue
+
+        if len(clave_tokens) == 1:
+            if palabra_match_flexible(clave_tokens[0], tokens):
+                puntuacion += 1
+        else:
+            frase_normalizada = " ".join(clave_tokens)
+            if frase_normalizada in texto_normalizado_tokens:
+                puntuacion += 2
+
+    if puntuacion <= 0:
+        return None
+
+    respuesta = generar_respuesta(categoria, "en", mensaje_normalizado, faq_data, usados=[])
+
+    estado["ultimo_opener"] = None
+
+    return {
+        "idioma": "en",
+        "categorias_detectadas": [
+            {"categoria": categoria, "puntuacion": puntuacion, "confianza": "media"}
+        ],
+        "categorias_respondibles": [
+            {"categoria": categoria, "puntuacion": puntuacion, "confianza": "media"}
+        ],
+        "mensajes_respuesta": [respuesta]
+    }
+
 def procesar_mensaje(mensaje, faq_data, estado):
     mensaje_normalizado = normalizar_texto_extendido(mensaje)
+    ultimo_opener_activo = estado.get("ultimo_opener")
+    resultado_opener = procesar_respuesta_a_opener(mensaje_normalizado, faq_data, estado)
+    if resultado_opener is not None:
+        actualizar_estado_conversacion(
+            estado,
+            [x["categoria"] for x in resultado_opener["categorias_respondibles"]],
+            resultado_opener["mensajes_respuesta"],
+            idioma="en"
+        )
+        return resultado_opener
 
     # Detect base language
     idioma_detectado = detectar_idioma(mensaje_normalizado)
@@ -1321,7 +1395,7 @@ def procesar_mensaje(mensaje, faq_data, estado):
 
     idioma = idioma_detectado
 
-    if idioma != "en":
+    if idioma != "en" and not ultimo_opener_activo:
         return {
             "idioma": "otro",
             "categorias_detectadas": [],
