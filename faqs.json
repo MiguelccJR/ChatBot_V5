@@ -346,5 +346,77 @@
                 "I can tell you the kind of options that are available."
             ]
         }
+    },
+    "reply_work_generic": {
+        "en": {
+            "palabras": [
+                "work",
+                "job",
+                "working",
+                "office job",
+                "in a bank",
+                "bank",
+                "construction",
+                "mechanic",
+                "teacher",
+                "driver",
+                "engineer",
+                "student",
+                "i work",
+                "i am a",
+                "i'm a"
+            ],
+            "respuestas": [
+                "Mmm, I like hearing a little more about your real life too 😊",
+                "That tells me a little more about you... I like that.",
+                "I like getting to know your everyday side too.",
+                "Now I’m getting a better picture of you.",
+                "I like hearing about the real you, not just the naughty side."
+            ]
+        }
+    },
+    "reply_work_tired": {
+        "en": {
+            "palabras": [
+                "long day",
+                "tired",
+                "exhausted",
+                "busy day",
+                "rough day",
+                "hard day",
+                "stressful day",
+                "so tired",
+                "really tired",
+                "worn out"
+            ],
+            "respuestas": [
+                "Sounds like you need something a little more relaxing tonight.",
+                "A long day? Maybe I can make your evening a bit better 😊",
+                "Mmm, you sound tired... maybe you need a little distraction.",
+                "That sounds exhausting, honestly.",
+                "You deserve something a little nicer after a day like that."
+            ]
+        }
+    },
+    "reply_work_boring": {
+        "en": {
+            "palabras": [
+                "boring",
+                "a bit boring",
+                "pretty boring",
+                "nothing exciting",
+                "not much",
+                "same as always",
+                "just the usual",
+                "nothing special"
+            ],
+            "respuestas": [
+                "Mmm, maybe I can make it a little less boring then 😊",
+                "Then maybe I should bring a little excitement to your evening.",
+                "That can be fixed... maybe I can make your night more interesting.",
+                "Maybe you just need a better distraction.",
+                "Well, boring days do make room for fun conversations."
+            ]
+        }
     }
 }

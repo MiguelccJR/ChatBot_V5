@@ -302,6 +302,9 @@ def normalizar_texto_extendido(texto):
     " jus " : " just ",
     " jst " : " just ",
     " wrking ": " working ",
+    " construccion ": " construction ",
+    " contruction ": " construction ",
+    " constructon ": " construction ",
     " wrk " : " work ",
     " can u ": " can you "
     }
@@ -403,6 +406,9 @@ def clasificar_mensaje_multiple(texto, idioma, faq_data):
     texto_normalizado_tokens = " ".join(tokens)
 
     for categoria, datos_categoria in faq_data.items():
+        if categoria == "openers" or categoria.startswith("reply_"):
+            continue
+             
         if idioma not in datos_categoria:
             continue
 
@@ -1256,55 +1262,77 @@ def procesar_respuesta_a_opener(mensaje_normalizado, faq_data, estado):
     ultimo_opener = estado.get("ultimo_opener")
 
     mapa = {
-        "opener_soft": "reply_to_soft_opener",
-        "opener_flirty": "reply_to_flirty_opener",
-        "opener_upsell": "reply_to_upsell_opener"
+        "opener_soft": [
+            "reply_work_tired",
+            "reply_work_boring",
+            "reply_work_generic",
+            "reply_to_soft_opener"
+        ],
+        "opener_flirty": [
+            "reply_to_flirty_opener"
+        ],
+        "opener_upsell": [
+            "reply_to_upsell_opener"
+        ]
     }
 
-    categoria = mapa.get(ultimo_opener)
-    if not categoria:
+    categorias_posibles = mapa.get(ultimo_opener)
+    if not categorias_posibles:
         return None
 
-    if categoria not in faq_data or "en" not in faq_data[categoria]:
-        return None
-
-    datos_categoria = faq_data[categoria]["en"]
-    if "palabras" not in datos_categoria:
-        return None
-
-    palabras_clave = datos_categoria["palabras"]
     tokens = tokenizar_texto(mensaje_normalizado)
     texto_normalizado_tokens = " ".join(tokens)
-    puntuacion = 0
 
-    for palabra in palabras_clave:
-        clave_tokens = tokenizar_texto(palabra)
+    mejor_categoria = None
+    mejor_puntuacion = 0
 
-        if not clave_tokens:
+    for categoria in categorias_posibles:
+        if categoria not in faq_data or "en" not in faq_data[categoria]:
             continue
 
-        if len(clave_tokens) == 1:
-            if palabra_match_flexible(clave_tokens[0], tokens):
-                puntuacion += 1
-        else:
-            frase_normalizada = " ".join(clave_tokens)
-            if frase_normalizada in texto_normalizado_tokens:
-                puntuacion += 2
+        datos_categoria = faq_data[categoria]["en"]
+        if "palabras" not in datos_categoria:
+            continue
 
-    if puntuacion <= 0:
+        puntuacion = 0
+        for palabra in datos_categoria["palabras"]:
+            clave_tokens = tokenizar_texto(palabra)
+
+            if not clave_tokens:
+                continue
+
+            if len(clave_tokens) == 1:
+                if palabra_match_flexible(clave_tokens[0], tokens):
+                    puntuacion += 1
+            else:
+                frase_normalizada = " ".join(clave_tokens)
+                if frase_normalizada in texto_normalizado_tokens:
+                    puntuacion += 2
+
+        if puntuacion > mejor_puntuacion:
+            mejor_puntuacion = puntuacion
+            mejor_categoria = categoria
+
+    if not mejor_categoria or mejor_puntuacion <= 0:
         return None
 
-    respuesta = generar_respuesta(categoria, "en", mensaje_normalizado, faq_data, usados=[])
+    respuesta = generar_respuesta(
+        mejor_categoria,
+        "en",
+        mensaje_normalizado,
+        faq_data,
+        usados=[]
+    )
 
     estado["ultimo_opener"] = None
 
     return {
         "idioma": "en",
         "categorias_detectadas": [
-            {"categoria": categoria, "puntuacion": puntuacion, "confianza": "media"}
+            {"categoria": mejor_categoria, "puntuacion": mejor_puntuacion, "confianza": "media"}
         ],
         "categorias_respondibles": [
-            {"categoria": categoria, "puntuacion": puntuacion, "confianza": "media"}
+            {"categoria": mejor_categoria, "puntuacion": mejor_puntuacion, "confianza": "media"}
         ],
         "mensajes_respuesta": [respuesta]
     }
