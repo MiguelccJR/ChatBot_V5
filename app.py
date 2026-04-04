@@ -508,26 +508,26 @@ if texto_usuario and texto_usuario.strip():
     )
 
     if USE_LOCAL_AI and resultado["mensajes_respuesta"]:
-    categorias_detectadas = [x["categoria"] for x in resultado["categorias_respondibles"]]
+        categorias_detectadas = [x["categoria"] for x in resultado["categorias_respondibles"]]
 
-    historial_corto = [
-        f'{m["role"]}: {m["content"]}'
-        for m in chat_activo["historial"][-6:]
-    ]
+        historial_corto = [
+            f'{m["role"]}: {m["content"]}'
+            for m in chat_activo["historial"][-6:]
+        ]
 
-    try:
-        respuesta_ia = generar_respuesta_ia_local(
-            mensaje_cliente=texto_usuario,
-            historial_corto=historial_corto,
-            intenciones=categorias_detectadas,
-            estado_cliente="chatting"
-        )
+        try:
+            respuesta_ia = generar_respuesta_ia_local(
+                mensaje_cliente=texto_usuario,
+                historial_corto=historial_corto,
+                intenciones=categorias_detectadas,
+                estado_cliente="chatting"
+            )
 
-        if respuesta_ia:
-            resultado["mensajes_respuesta"] = [respuesta_ia]
+            if respuesta_ia:
+                resultado["mensajes_respuesta"] = [respuesta_ia]
 
-    except Exception as e:
-        print("LM Studio error:", e)
+        except Exception as e:
+            print("LM Studio error:", e)
 
     # Save turn in DB
     st.session_state.turn_number_global += 1
