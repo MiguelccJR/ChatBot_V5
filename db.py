@@ -127,7 +127,6 @@ def update_chat_message_status(
     message_id: int,
     status: str,
     error_text: str | None = None,
-    processed: bool = False
 ):
     supabase = get_supabase()
 
@@ -136,8 +135,8 @@ def update_chat_message_status(
         "error_text": error_text
     }
 
-    if processed:
-        payload["processed_at"] = "now()"
+    #if processed:
+     #   payload["processed_at"] = "now()"
 
     response = (
         supabase.table("chat_messages")
