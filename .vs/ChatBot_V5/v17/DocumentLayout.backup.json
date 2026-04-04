@@ -7,6 +7,14 @@
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:app.py||{3B902123-F8A7-4915-9F01-361F908088D0}"
     },
     {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\db.py||{3B902123-F8A7-4915-9F01-361F908088D0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:db.py||{3B902123-F8A7-4915-9F01-361F908088D0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\requirements.txt||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:requirements.txt||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\local_ai.py||{3B902123-F8A7-4915-9F01-361F908088D0}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:local_ai.py||{3B902123-F8A7-4915-9F01-361F908088D0}"
     },
@@ -26,11 +34,37 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 2,
+          "SelectedChildIndex": 4,
           "Children": [
             {
               "$type": "Document",
               "DocumentIndex": 1,
+              "Title": "db.py",
+              "DocumentMoniker": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\db.py",
+              "RelativeDocumentMoniker": "db.py",
+              "ToolTip": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\db.py",
+              "RelativeToolTip": "db.py",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAKIAAAAYAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2026-04-04T23:15:41.448Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "requirements.txt",
+              "DocumentMoniker": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\requirements.txt",
+              "RelativeDocumentMoniker": "requirements.txt",
+              "ToolTip": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\requirements.txt",
+              "RelativeToolTip": "requirements.txt",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAIAAAANAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003109|",
+              "WhenOpened": "2026-04-04T22:33:14.818Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
               "Title": "local_ai.py",
               "DocumentMoniker": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\local_ai.py",
               "RelativeDocumentMoniker": "local_ai.py",
@@ -38,12 +72,11 @@
               "RelativeToolTip": "local_ai.py",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAFMAAAAnAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
-              "WhenOpened": "2026-04-04T19:47:55.991Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-04T19:47:55.991Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 4,
               "Title": "faqs.json",
               "DocumentMoniker": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\faqs.json",
               "RelativeDocumentMoniker": "faqs.json",
@@ -61,14 +94,14 @@
               "RelativeDocumentMoniker": "app.py",
               "ToolTip": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\app.py",
               "RelativeToolTip": "app.py",
-              "ViewState": "AgIAAPIBAAAAAAAAAAAAwBACAAAEAAAAAAAAAA==",
+              "ViewState": "AgIAAIYBAAAAAAAAAAAAwPkBAAAOAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
               "WhenOpened": "2026-04-01T19:21:25.485Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 5,
               "Title": "faq_bot_v5.py",
               "DocumentMoniker": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\faq_bot_v5.py",
               "RelativeDocumentMoniker": "faq_bot_v5.py",

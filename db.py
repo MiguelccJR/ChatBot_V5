@@ -59,3 +59,105 @@ def save_feedback(session_id: str, turn_number: int, rating: str, comment: str):
         })
         .execute()
     )
+
+
+# ----------------------------
+# New helpers for chat_messages
+# ----------------------------
+def create_chat_message(
+    session_id: str,
+    turn_number: int,
+    role: str,
+    content: str,
+    status: str = "done",
+    source: str = "streamlit",
+    reply_to_message_id: int | None = None,
+    idioma: str | None = None,
+    categorias_detectadas: list | None = None,
+    categorias_respondibles: list | None = None,
+    error_text: str | None = None,
+):
+    supabase = get_supabase()
+
+    payload = {
+        "session_id": session_id,
+        "turn_number": turn_number,
+        "role": role,
+        "content": content,
+        "status": status,
+        "source": source,
+        "reply_to_message_id": reply_to_message_id,
+        "idioma": idioma,
+        "categorias_detectadas": categorias_detectadas or [],
+        "categorias_respondibles": categorias_respondibles or [],
+        "error_text": error_text,
+    }
+
+    response = supabase.table("chat_messages").insert(payload).execute()
+    return response.data[0]
+
+
+def get_chat_messages(session_id: str):
+    supabase = get_supabase()
+    response = (
+        supabase.table("chat_messages")
+        .select("*")
+        .eq("session_id", session_id)
+        .order("created_at")
+        .execute()
+    )
+    return response.data
+
+
+def get_pending_ai_messages(limit: int = 10):
+    supabase = get_supabase()
+    response = (
+        supabase.table("chat_messages")
+        .select("*")
+        .eq("role", "user")
+        .eq("status", "pending_ai")
+        .order("created_at")
+        .limit(limit)
+        .execute()
+    )
+    return response.data
+
+
+def update_chat_message_status(
+    message_id: int,
+    status: str,
+    error_text: str | None = None,
+    processed: bool = False
+):
+    supabase = get_supabase()
+
+    payload = {
+        "status": status,
+        "error_text": error_text
+    }
+
+    if processed:
+        payload["processed_at"] = "now()"
+
+    response = (
+        supabase.table("chat_messages")
+        .update(payload)
+        .eq("id", message_id)
+        .execute()
+    )
+    return response.data
+
+
+def mark_chat_message_processed(message_id: int, status: str = "done", error_text: str | None = None):
+    supabase = get_supabase()
+    response = (
+        supabase.table("chat_messages")
+        .update({
+            "status": status,
+            "error_text": error_text,
+            "processed_at": "now()"
+        })
+        .eq("id", message_id)
+        .execute()
+    )
+    return response.data

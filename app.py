@@ -1,6 +1,6 @@
 import streamlit as st
 from faq_bot_v5 import cargar_faqs, crear_estado_conversacion, procesar_mensaje, obtener_opener
-from db import create_test_session, save_message_turn, save_feedback
+from db import create_test_session, save_message_turn, save_feedback, create_chat_message, get_chat_messages
 from local_ai import generar_respuesta_ia_local
 
 USE_LOCAL_AI = True
@@ -368,6 +368,13 @@ chat_activo = obtener_chat_activo()
 
 st.subheader(f"Active chat: {chat_activo['nombre']} [{chat_activo['plataforma']}]")
 
+db_chat_messages = []
+if st.session_state.db_session_id is not None:
+    try:
+        db_chat_messages = get_chat_messages(st.session_state.db_session_id)
+    except Exception as e:
+        st.error(f"Error loading chat messages: {e}")
+
 st.markdown("### Suggested openers")
 
 col1, col2, col3 = st.columns(3)
@@ -432,7 +439,7 @@ if st.session_state.suggested_opener:
         st.session_state.suggested_opener_type = ""
         st.rerun()
 
-for i, mensaje in enumerate(chat_activo["historial"][-40:]):
+for i, mensaje in enumerate(db_chat_messages[-40:]):
     with st.chat_message(mensaje["role"]):
         st.markdown(mensaje["content"])
 
@@ -440,37 +447,28 @@ for i, mensaje in enumerate(chat_activo["historial"][-40:]):
             turn_number = mensaje.get("turn_number", 0)
             unique_id = f"{chat_activo['nombre']}_{turn_number}_{i}"
 
-            if not mensaje.get("feedback_saved", False):
-                rating = st.radio(
-                    "Rate this reply",
-                    options=["Good", "Regular", "Bad"],
-                    horizontal=True,
-                    key=f"rating_{unique_id}"
+            rating = st.radio(
+                "Rate this reply",
+                options=["Good", "Regular", "Bad"],
+                horizontal=True,
+                key=f"rating_{unique_id}"
+            )
+
+            comment = st.text_input(
+                "Optional comment",
+                key=f"comment_{unique_id}",
+                placeholder="What sounds good or wrong here?"
+            )
+
+            if st.button("Save feedback", key=f"save_{unique_id}"):
+                save_feedback(
+                    session_id=st.session_state.db_session_id,
+                    turn_number=turn_number,
+                    rating=rating,
+                    comment=comment
                 )
-
-                comment = st.text_input(
-                    "Optional comment",
-                    key=f"comment_{unique_id}",
-                    placeholder="What sounds good or wrong here?"
-                )
-
-                if st.button("Save feedback", key=f"save_{unique_id}"):
-                    save_feedback(
-                        session_id=st.session_state.db_session_id,
-                        turn_number=turn_number,
-                        rating=rating,
-                        comment=comment
-                    )
-                    mensaje["feedback_saved"] = True
-                    mensaje["feedback_comment"] = comment
-                    mensaje["feedback_rating"] = rating
-                    st.success("Feedback saved")
-                    st.rerun()
-            else:
-                st.caption(f"Saved feedback: {mensaje.get('feedback_rating', '-')}")
-                if mensaje.get("feedback_comment"):
-                    st.caption(f"Comment: {mensaje['feedback_comment']}")
-
+                st.success("Feedback saved")
+                st.rerun()
 
 # ----------------------------
 # Chat input
@@ -490,70 +488,19 @@ if texto_usuario and texto_usuario.strip():
             platform=chat_activo["plataforma"]
         )
 
-    chat_activo["turn_counter"] += 1
-    turn_id = chat_activo["turn_counter"]
-
-    # Save user message in UI
-    chat_activo["historial"].append({
-        "role": "user",
-        "content": texto_usuario,
-        "turn_id": turn_id
-    })
-
-    # Process with this chat's state
-    resultado = procesar_mensaje(
-        texto_usuario,
-        st.session_state.faq_data,
-        chat_activo["estado_bot"]
-    )
-
-    if USE_LOCAL_AI and resultado["mensajes_respuesta"]:
-        categorias_detectadas = [x["categoria"] for x in resultado["categorias_respondibles"]]
-
-        historial_corto = [
-            f'{m["role"]}: {m["content"]}'
-            for m in chat_activo["historial"][-6:]
-        ]
-
-        try:
-            respuesta_ia = generar_respuesta_ia_local(
-                mensaje_cliente=texto_usuario,
-                historial_corto=historial_corto,
-                intenciones=categorias_detectadas,
-                estado_cliente="chatting"
-            )
-
-            if respuesta_ia:
-                resultado["mensajes_respuesta"] = [respuesta_ia]
-
-        except Exception as e:
-            print("LM Studio error:", e)
-
-    # Save turn in DB
     st.session_state.turn_number_global += 1
     current_turn_number = st.session_state.turn_number_global
 
-    save_message_turn(
+    create_chat_message(
         session_id=st.session_state.db_session_id,
         turn_number=current_turn_number,
-        user_message=texto_usuario,
-        bot_messages=resultado["mensajes_respuesta"],
-        idioma=resultado["idioma"],
-        categorias_detectadas=resultado["categorias_detectadas"],
-        categorias_respondibles=resultado["categorias_respondibles"]
+        role="user",
+        content=texto_usuario,
+        status="pending_ai",
+        source="streamlit",
+        idioma="en",
+        categorias_detectadas=[],
+        categorias_respondibles=[]
     )
-
-    chat_activo["ultimo_resultado"] = resultado
-
-    # Save bot replies in UI
-    for respuesta in resultado["mensajes_respuesta"]:
-        chat_activo["historial"].append({
-            "role": "assistant",
-            "content": respuesta,
-            "turn_number": current_turn_number,
-            "feedback_saved": False,
-            "feedback_comment": "",
-            "feedback_rating": ""
-        })
 
     st.rerun()
