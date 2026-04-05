@@ -368,6 +368,16 @@ chat_activo = obtener_chat_activo()
 
 st.subheader(f"Active chat: {chat_activo['nombre']} [{chat_activo['plataforma']}]")
 
+col_refresh1, col_refresh2 = st.columns([1, 4])
+
+with col_refresh1:
+    if st.button("Refresh chat"):
+        st.rerun()
+
+with col_refresh2:
+    if st.session_state.db_session_id:
+        st.caption(f"Session ID: {st.session_state.db_session_id}")
+
 db_chat_messages = []
 if st.session_state.db_session_id is not None:
     try:
