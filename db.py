@@ -1,12 +1,18 @@
+import os
 import streamlit as st
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from supabase import create_client
 
-
 def get_supabase():
-    return create_client(
-        st.secrets["SUPABASE_URL"],
-        st.secrets["SUPABASE_KEY"]
-    )
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_KEY")
+    if not url or not key:
+       url = st.secrets["SUPABASE_URL"]
+       key = st.secrets["SUPABASE_KEY"] 
+    return create_client(url,key)
 
 
 def create_test_session(tester_name: str, platform: str) -> str:

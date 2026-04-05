@@ -1,11 +1,7 @@
 import streamlit as st
 import time
 
-from faq_bot_v5 import (
-    cargar_faqs,
-    crear_estado_conversacion,
-    obtener_opener,
-)
+from faq_bot_v5 import crear_estado_conversacion
 
 from db import (
     create_test_session,
@@ -17,12 +13,23 @@ from db import (
 )
 
 st.set_page_config(
-    page_title="FAQ Bot Multi-Chat Simulator",
+    page_title="Chatbot comercial - simulador multi-chat",
     layout="wide"
 )
 
-st.title("Internal bot simulator")
-st.caption("Local testing / simple questions")
+st.title("Chatbot comercial")
+st.caption("Multi-chat testing with local AI")
+
+
+# ----------------------------
+# Constants
+# ----------------------------
+PLATFORM_OPTIONS = ["test", "telegram", "webchat"]
+OPENER_LABELS = {
+    "soft": "Soft opener",
+    "flirty": "Flirty opener",
+    "upsell": "Upsell opener",
+}
 
 
 # ----------------------------
@@ -45,6 +52,9 @@ def crear_chat(nombre=None, plataforma="test"):
         "etiquetas": [],
         "turn_counter": 0,
         "db_session_id": None,
+        "suggested_opener": "",
+        "suggested_opener_type": "",
+        "pending_opener_type": None,
     }
 
 
@@ -61,6 +71,9 @@ def reiniciar_chat_activo():
     chat["etiquetas"] = []
     chat["turn_counter"] = 0
     chat["db_session_id"] = None
+    chat["suggested_opener"] = ""
+    chat["suggested_opener_type"] = ""
+    chat["pending_opener_type"] = None
 
 
 def eliminar_chat_activo():
@@ -73,17 +86,69 @@ def eliminar_chat_activo():
     st.session_state.chat_activo = list(st.session_state.chats.keys())[0]
 
 
-def recargar_faqs():
-    st.session_state.faq_data = cargar_faqs()
+def asegurar_db_session(chat):
+    if chat["db_session_id"] is None:
+        chat["db_session_id"] = create_test_session(
+            tester_name=st.session_state.tester_name or "anonymous",
+            platform=chat["plataforma"]
+        )
+    return chat["db_session_id"]
+
+
+def solicitar_opener_ai(chat, opener_type):
+    asegurar_db_session(chat)
+
+    chat["suggested_opener"] = ""
+    chat["suggested_opener_type"] = ""
+    chat["pending_opener_type"] = opener_type
+
+    create_opener_request(
+        session_id=chat["db_session_id"],
+        opener_type=opener_type
+    )
+
+
+def procesar_estado_opener(chat):
+    """
+    Lee el opener pendiente del chat activo y actualiza el estado del chat.
+    Devuelve el último opener request o None.
+    """
+    if chat["db_session_id"] is None:
+        return None
+
+    if not chat.get("pending_opener_type"):
+        return None
+
+    try:
+        latest_request = get_latest_opener_request(
+            chat["db_session_id"],
+            chat["pending_opener_type"]
+        )
+    except Exception as e:
+        st.error(f"Error loading opener suggestion: {e}")
+        return None
+
+    if not latest_request:
+        return None
+
+    status = latest_request.get("status")
+    opener_type = latest_request.get("opener_type") or chat["pending_opener_type"]
+
+    if status == "done" and latest_request.get("suggestion_text"):
+        chat["suggested_opener"] = latest_request["suggestion_text"]
+        chat["suggested_opener_type"] = f"opener_{opener_type}"
+        chat["pending_opener_type"] = None
+
+    elif status == "error":
+        chat["pending_opener_type"] = None
+
+    return latest_request
 
 
 # ----------------------------
 # Global app initialization
 # ----------------------------
 def inicializar_estado_app():
-    if "faq_data" not in st.session_state:
-        st.session_state.faq_data = cargar_faqs()
-
     if "chats" not in st.session_state:
         st.session_state.chats = {}
 
@@ -97,22 +162,43 @@ def inicializar_estado_app():
     for cid, chat in st.session_state.chats.items():
         if "nombre" not in chat:
             chat["nombre"] = cid
+
         if "plataforma" not in chat:
             chat["plataforma"] = "test"
+
+        # Migración simple de nombre viejo
+        if chat["plataforma"] == "onlyfans":
+            chat["plataforma"] = "webchat"
+
         if "historial" not in chat:
             chat["historial"] = []
+
         if "estado_bot" not in chat:
             chat["estado_bot"] = crear_estado_conversacion()
+
         if "ultimo_resultado" not in chat:
             chat["ultimo_resultado"] = None
+
         if "score" not in chat:
             chat["score"] = 0
+
         if "etiquetas" not in chat:
             chat["etiquetas"] = []
+
         if "turn_counter" not in chat:
             chat["turn_counter"] = 0
+
         if "db_session_id" not in chat:
             chat["db_session_id"] = None
+
+        if "suggested_opener" not in chat:
+            chat["suggested_opener"] = ""
+
+        if "suggested_opener_type" not in chat:
+            chat["suggested_opener_type"] = ""
+
+        if "pending_opener_type" not in chat:
+            chat["pending_opener_type"] = None
 
     if "mostrar_debug" not in st.session_state:
         st.session_state.mostrar_debug = True
@@ -122,12 +208,6 @@ def inicializar_estado_app():
 
     if "turn_number_global" not in st.session_state:
         st.session_state.turn_number_global = 0
-
-    if "suggested_opener" not in st.session_state:
-        st.session_state.suggested_opener = ""
-
-    if "suggested_opener_type" not in st.session_state:
-        st.session_state.suggested_opener_type = ""
 
     if not st.session_state.chats:
         chat_id, chat_data = crear_chat(nombre="user_001", plataforma="test")
@@ -156,7 +236,7 @@ with st.sidebar:
         nuevo_nombre = st.text_input("New chat name", value="")
         nueva_plataforma = st.selectbox(
             "Platform",
-            options=["test", "telegram", "onlyfans"],
+            options=PLATFORM_OPTIONS,
             index=0,
             key="select_nueva_plataforma"
         )
@@ -202,15 +282,23 @@ with st.sidebar:
         key="input_nombre_chat_activo"
     )
 
+    plataforma_actual = chat_activo["plataforma"]
+    if plataforma_actual not in PLATFORM_OPTIONS:
+        plataforma_actual = "test"
+
     nueva_plataforma_chat = st.selectbox(
         "Chat platform",
-        options=["test", "telegram", "onlyfans"],
-        index=["test", "telegram", "onlyfans"].index(chat_activo["plataforma"]),
+        options=PLATFORM_OPTIONS,
+        index=PLATFORM_OPTIONS.index(plataforma_actual),
         key="select_plataforma_chat_activo"
     )
 
     if st.button("Save chat changes", use_container_width=True):
-        chat_activo["nombre"] = nuevo_nombre_chat.strip() if nuevo_nombre_chat.strip() else chat_activo["nombre"]
+        chat_activo["nombre"] = (
+            nuevo_nombre_chat.strip()
+            if nuevo_nombre_chat.strip()
+            else chat_activo["nombre"]
+        )
         chat_activo["plataforma"] = nueva_plataforma_chat
         st.success("Chat updated")
         st.rerun()
@@ -229,10 +317,6 @@ with st.sidebar:
 
     st.divider()
 
-    if st.button("Reload FAQs", use_container_width=True):
-        recargar_faqs()
-        st.success("FAQs reloaded")
-
     st.session_state.mostrar_debug = st.checkbox(
         "Show technical debug",
         value=st.session_state.mostrar_debug
@@ -245,6 +329,7 @@ with st.sidebar:
     st.write(f"**Score:** {chat_activo['score']}")
     st.write(f"**Tags:** {', '.join(chat_activo['etiquetas']) if chat_activo['etiquetas'] else '-'}")
     st.write(f"**DB session:** {chat_activo.get('db_session_id') if chat_activo.get('db_session_id') else '-'}")
+    st.write(f"**Pending opener:** {chat_activo.get('pending_opener_type') or '-'}")
 
     if st.session_state.mostrar_debug:
         st.divider()
@@ -307,6 +392,12 @@ mensajes_pendientes = [
 hay_pendiente = len(mensajes_pendientes) > 0
 ultimo_pendiente = mensajes_pendientes[-1] if hay_pendiente else None
 
+latest_requested_opener = procesar_estado_opener(chat_activo)
+hay_opener_pendiente = False
+
+if latest_requested_opener:
+    hay_opener_pendiente = latest_requested_opener.get("status") in ("pending", "processing")
+
 st.subheader(f"Active chat: {chat_activo['nombre']} [{chat_activo['plataforma']}]")
 
 col_refresh1, col_refresh2 = st.columns([1, 4])
@@ -325,61 +416,44 @@ if ultimo_pendiente:
     elif ultimo_pendiente["status"] == "processing":
         st.info("Typing...")
 
-st.markdown("### Suggested openers")
+if latest_requested_opener:
+    opener_status = latest_requested_opener.get("status")
+    opener_type = latest_requested_opener.get("opener_type") or chat_activo.get("pending_opener_type")
+    opener_label = OPENER_LABELS.get(opener_type, "Opener")
 
-latest_soft_opener = None
-if chat_activo["db_session_id"] is not None:
-    try:
-        latest_soft_opener = get_latest_opener_request(chat_activo["db_session_id"], "soft")
-    except Exception as e:
-        st.error(f"Error loading opener suggestion: {e}")
+    if opener_status == "pending":
+        st.info(f"Generating {opener_label.lower()}...")
+    elif opener_status == "processing":
+        st.info(f"Local AI is preparing the {opener_label.lower()}...")
+    elif opener_status == "error":
+        st.warning(
+            f"{opener_label} error: {latest_requested_opener.get('error_text', 'unknown error')}"
+        )
+
+st.markdown("### Suggested openers")
 
 col1, col2, col3 = st.columns(3)
 
 with col1:
     if st.button("Soft opener", use_container_width=True):
-        if chat_activo["db_session_id"] is None:
-            chat_activo["db_session_id"] = create_test_session(
-                tester_name=st.session_state.tester_name or "anonymous",
-                platform=chat_activo["plataforma"]
-            )
-
-        create_opener_request(
-            session_id=chat_activo["db_session_id"],
-            opener_type="soft"
-        )
+        solicitar_opener_ai(chat_activo, "soft")
         st.rerun()
 
 with col2:
     if st.button("Flirty opener", use_container_width=True):
-        st.session_state.suggested_opener = obtener_opener("opener_flirty", st.session_state.faq_data) or ""
-        st.session_state.suggested_opener_type = "opener_flirty"
+        solicitar_opener_ai(chat_activo, "flirty")
+        st.rerun()
 
 with col3:
     if st.button("Upsell opener", use_container_width=True):
-        st.session_state.suggested_opener = obtener_opener("opener_upsell", st.session_state.faq_data) or ""
-        st.session_state.suggested_opener_type = "opener_upsell"
+        solicitar_opener_ai(chat_activo, "upsell")
+        st.rerun()
 
-if latest_soft_opener:
-    if latest_soft_opener["status"] == "pending":
-        st.info("Generating soft opener...")
-    elif latest_soft_opener["status"] == "processing":
-        st.info("Local AI is preparing a soft opener...")
-    elif latest_soft_opener["status"] == "done" and latest_soft_opener.get("suggestion_text"):
-        st.session_state.suggested_opener = latest_soft_opener["suggestion_text"]
-        st.session_state.suggested_opener_type = "opener_soft"
-    elif latest_soft_opener["status"] == "error":
-        st.warning(f"Soft opener error: {latest_soft_opener.get('error_text', 'unknown error')}")
-
-if st.session_state.suggested_opener:
-    st.info(st.session_state.suggested_opener)
+if chat_activo["suggested_opener"]:
+    st.info(chat_activo["suggested_opener"])
 
     if st.button("Use opener in chat", use_container_width=True):
-        if chat_activo["db_session_id"] is None:
-            chat_activo["db_session_id"] = create_test_session(
-                tester_name=st.session_state.tester_name or "anonymous",
-                platform=chat_activo["plataforma"]
-            )
+        asegurar_db_session(chat_activo)
 
         chat_activo["turn_counter"] += 1
         opener_turn_number = chat_activo["turn_counter"]
@@ -388,26 +462,27 @@ if st.session_state.suggested_opener:
             session_id=chat_activo["db_session_id"],
             turn_number=opener_turn_number,
             role="assistant",
-            content=st.session_state.suggested_opener,
+            content=chat_activo["suggested_opener"],
             status="done",
             source="streamlit",
             reply_to_message_id=None,
             idioma="en",
             categorias_detectadas=[{
-                "categoria": st.session_state.suggested_opener_type,
+                "categoria": chat_activo["suggested_opener_type"],
                 "puntuacion": 1,
                 "confianza": "manual"
             }],
             categorias_respondibles=[{
-                "categoria": st.session_state.suggested_opener_type,
+                "categoria": chat_activo["suggested_opener_type"],
                 "puntuacion": 1,
                 "confianza": "manual"
             }]
         )
 
-        chat_activo["estado_bot"]["ultimo_opener"] = st.session_state.suggested_opener_type
-        st.session_state.suggested_opener = ""
-        st.session_state.suggested_opener_type = ""
+        chat_activo["estado_bot"]["ultimo_opener"] = chat_activo["suggested_opener_type"]
+        chat_activo["suggested_opener"] = ""
+        chat_activo["suggested_opener_type"] = ""
+        chat_activo["pending_opener_type"] = None
         st.rerun()
 
 for i, mensaje in enumerate(db_chat_messages[-40:]):
@@ -442,9 +517,11 @@ for i, mensaje in enumerate(db_chat_messages[-40:]):
                 st.success("Feedback saved")
                 st.rerun()
 
-if hay_pendiente:
-    time.sleep(3)
+# Auto-refresh mientras el worker está trabajando
+if hay_pendiente or hay_opener_pendiente:
+    time.sleep(2)
     st.rerun()
+
 
 # ----------------------------
 # Chat input
@@ -458,11 +535,7 @@ texto_usuario = st.chat_input(
 # Processing
 # ----------------------------
 if texto_usuario and texto_usuario.strip():
-    if chat_activo["db_session_id"] is None:
-        chat_activo["db_session_id"] = create_test_session(
-            tester_name=st.session_state.tester_name or "anonymous",
-            platform=chat_activo["plataforma"]
-        )
+    asegurar_db_session(chat_activo)
 
     chat_activo["turn_counter"] += 1
     current_turn_number = chat_activo["turn_counter"]
