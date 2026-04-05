@@ -361,11 +361,25 @@ with st.sidebar:
             for i, msg in enumerate(resultado["mensajes_respuesta"], start=1):
                 st.write(f"{i}. {msg}")
 
-
 # ----------------------------
 # Main area
 # ----------------------------
 chat_activo = obtener_chat_activo()
+
+db_chat_messages = []
+if st.session_state.db_session_id is not None:
+    try:
+        db_chat_messages = get_chat_messages(st.session_state.db_session_id)
+    except Exception as e:
+        st.error(f"Error loading chat messages: {e}")
+
+mensajes_pendientes = [
+    m for m in db_chat_messages
+    if m["role"] == "user" and m["status"] in ("pending_ai", "processing")
+]
+
+hay_pendiente = len(mensajes_pendientes) > 0
+ultimo_pendiente = mensajes_pendientes[-1] if hay_pendiente else None
 
 st.subheader(f"Active chat: {chat_activo['nombre']} [{chat_activo['plataforma']}]")
 
@@ -379,29 +393,11 @@ with col_refresh2:
     if st.session_state.db_session_id:
         st.caption(f"Session ID: {st.session_state.db_session_id}")
 
-db_chat_messages = []
-if st.session_state.db_session_id is not None:
-    try:
-        db_chat_messages = get_chat_messages(st.session_state.db_session_id)
-    except Exception as e:
-        st.error(f"Error loading chat messages: {e}")
-
 if ultimo_pendiente:
     if ultimo_pendiente["status"] == "pending_ai":
         st.info("Reading...")
     elif ultimo_pendiente["status"] == "processing":
         st.info("Typing...")
-
-mensajes_pendientes = [
-    m for m in db_chat_messages
-    if m["role"] == "user" and m["status"] in ("pending_ai", "processing")
-]
-if hay_pendiente:
-    time.sleep(1)
-    st.rerun()
-
-hay_pendiente = len(mensajes_pendientes) > 0
-ultimo_pendiente = mensajes_pendientes[-1] if hay_pendiente else None
 
 st.markdown("### Suggested openers")
 
@@ -431,24 +427,19 @@ if st.session_state.suggested_opener:
                 tester_name=st.session_state.tester_name or "anonymous",
                 platform=chat_activo["plataforma"]
             )
+            st.query_params["session_id"] = st.session_state.db_session_id
 
         st.session_state.turn_number_global += 1
         opener_turn_number = st.session_state.turn_number_global
 
-        chat_activo["historial"].append({
-            "role": "assistant",
-            "content": st.session_state.suggested_opener,
-            "turn_number": opener_turn_number,
-            "feedback_saved": False,
-            "feedback_comment": "",
-            "feedback_rating": ""
-        })
-
-        save_message_turn(
+        create_chat_message(
             session_id=st.session_state.db_session_id,
             turn_number=opener_turn_number,
-            user_message="[OPENER_SENT]",
-            bot_messages=[st.session_state.suggested_opener],
+            role="assistant",
+            content=st.session_state.suggested_opener,
+            status="done",
+            source="streamlit",
+            reply_to_message_id=None,
             idioma="en",
             categorias_detectadas=[{
                 "categoria": st.session_state.suggested_opener_type,
@@ -497,6 +488,10 @@ for i, mensaje in enumerate(db_chat_messages[-40:]):
                 )
                 st.success("Feedback saved")
                 st.rerun()
+
+if hay_pendiente:
+    time.sleep(2)
+    st.rerun()
 
 # ----------------------------
 # Chat input
