@@ -8,7 +8,7 @@ from db import (
 from local_ai import generar_respuesta_ia_local
 
 
-POLL_SECONDS = 3
+POLL_SECONDS = 1.5
 
 
 def construir_historial_corto(session_id: str, limite: int = 6):

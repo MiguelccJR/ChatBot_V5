@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 from faq_bot_v5 import cargar_faqs, crear_estado_conversacion, procesar_mensaje, obtener_opener
 from db import create_test_session, save_message_turn, save_feedback, create_chat_message, get_chat_messages
 from local_ai import generar_respuesta_ia_local
@@ -368,6 +369,12 @@ chat_activo = obtener_chat_activo()
 
 st.subheader(f"Active chat: {chat_activo['nombre']} [{chat_activo['plataforma']}]")
 
+if ultimo_pendiente:
+    if ultimo_pendiente["status"] == "pending_ai":
+        st.info("Reading...")
+    elif ultimo_pendiente["status"] == "processing":
+        st.info("Typing...")
+
 col_refresh1, col_refresh2 = st.columns([1, 4])
 
 with col_refresh1:
@@ -378,12 +385,24 @@ with col_refresh2:
     if st.session_state.db_session_id:
         st.caption(f"Session ID: {st.session_state.db_session_id}")
 
+if hay_pendiente:
+    time.sleep(1)
+    st.return()
+
 db_chat_messages = []
 if st.session_state.db_session_id is not None:
     try:
         db_chat_messages = get_chat_messages(st.session_state.db_session_id)
     except Exception as e:
         st.error(f"Error loading chat messages: {e}")
+
+mensajes_pendientes = [
+    m for m in db_chat_messages
+    if m["role"] == "user" and m["status"] in ("pending_ai", "processing")
+]
+
+hay_pendiente = len(mensajes_pendientes) > 0
+ultimo_pendiente = mensajes_pendientes[-1] if hay_pendiente else None
 
 st.markdown("### Suggested openers")
 
