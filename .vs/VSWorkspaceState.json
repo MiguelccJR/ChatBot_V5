@@ -1,7 +1,8 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\.streamlit"
   ],
-  "SelectedNode": "\\db.py",
+  "SelectedNode": "\\.streamlit",
   "PreviewInSolutionExplorer": false
 }
