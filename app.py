@@ -387,7 +387,7 @@ with col_refresh2:
 
 if hay_pendiente:
     time.sleep(1)
-    st.return()
+    st.rerun()
 
 db_chat_messages = []
 if st.session_state.db_session_id is not None:
