@@ -4,6 +4,8 @@ from db import (
     get_chat_messages,
     create_chat_message,
     update_chat_message_status,
+    get_pending_opener_request,
+    update_opener_request,
 )
 from local_ai import generar_respuesta_ia_local
 
@@ -68,14 +70,52 @@ def procesar_mensaje_pendiente(mensaje):
         update_chat_message_status(message_id, "error", error_text=str(e))
         print(f"[ERROR] Message {message_id}: {e}")
 
+def procesar_opener_pendiente(item):
+    opener_id = item["id"]
+    session_id = item["session_id"]
+    opener_type = item["opener_type"]
+
+    update_opener_request(opener_id, "processing")
+
+    try:
+        historial_corto = construir_historial_corto(session_id, limite=6)
+
+        sugerencia = generar_opener_ia_local(
+            historial_corto=historial_corto,
+            opener_type=opener_type,
+            estado_cliente="chatting"
+        )
+
+        if not sugerencia:
+            raise ValueError("Empty opener from local AI")
+
+        update_opener_request(
+            opener_id,
+            "done",
+            suggestion_text=sugerencia
+        )
+
+        print(f"[OK] Generated {opener_type} opener {opener_id}")
+
+    except Exception as e:
+        update_opener_request(
+            opener_id,
+            "error",
+            error_text=str(e)
+        )
+        print(f"[ERROR] Opener {opener_id}: {e}")
 
 def main():
-    print("Local worker started. Waiting for pending_ai messages...")
+    print("Local worker started. Waiting for pending items...")
 
     while True:
         try:
-            pendientes = get_pending_ai_messages(limit=5)
+            pendientes_openers = get_pending_opener_requests(limit=5)
+            if pendientes_openers:
+                for item in pendientes_openers:
+                    procesar_opener_pendiente(item)
 
+            pendientes = get_pending_ai_messages(limit=5)
             if pendientes:
                 for mensaje in pendientes:
                     procesar_mensaje_pendiente(mensaje)

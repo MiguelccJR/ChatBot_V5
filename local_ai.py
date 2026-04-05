@@ -82,3 +82,44 @@ Keep it short, natural, and in character.
     )
 
     return response.output_text.strip()
+
+def generar_opener_ia_local(
+    historial_corto: list[str] | None = None,
+    opener_type: str = "soft",
+    estado_cliente: str = "chatting"
+) -> str:
+    historial_corto = historial_corto or []
+    contexto = "\n".join(f"- {x}" for x in historial_corto[-4:]) if historial_corto else "- none"
+
+    prompt = f"""
+Generate one short opener in English for a female content creator talking to a potential customer.
+
+Opener type:
+{opener_type}
+
+Conversation stage:
+{estado_cliente}
+
+Recent conversation:
+{contexto}
+
+Rules:
+- write only one opener
+- keep it short
+- warm, feminine, playful, natural
+- not robotic
+- not too explicit
+- do not mention being an AI
+- do not sound overly dramatic
+- make it realistic and engaging
+
+Return only the opener text.
+""".strip()
+
+    response = client.responses.create(
+        model="qwen/qwen3.5-9b",
+        instructions=SYSTEM_PROMPT_BASE,
+        input=prompt
+    )
+
+    return response.output_text.strip()

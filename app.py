@@ -12,6 +12,8 @@ from db import (
     save_feedback,
     create_chat_message,
     get_chat_messages,
+    create_opener_request,
+    get_latest_opener_request,
 )
 
 st.set_page_config(
@@ -325,12 +327,28 @@ if ultimo_pendiente:
 
 st.markdown("### Suggested openers")
 
+latest_soft_opener = None
+if chat_activo["db_session_id"] is not None:
+    try:
+        latest_soft_opener = get_latest_opener_request(chat_activo["db_session_id"], "soft")
+    except Exception as e:
+        st.error(f"Error loading opener suggestion: {e}")
+
 col1, col2, col3 = st.columns(3)
 
 with col1:
     if st.button("Soft opener", use_container_width=True):
-        st.session_state.suggested_opener = obtener_opener("opener_soft", st.session_state.faq_data) or ""
-        st.session_state.suggested_opener_type = "opener_soft"
+        if chat_activo["db_session_id"] is None:
+            chat_activo["db_session_id"] = create_test_session(
+                tester_name=st.session_state.tester_name or "anonymous",
+                platform=chat_activo["plataforma"]
+            )
+
+        create_opener_request(
+            session_id=chat_activo["db_session_id"],
+            opener_type="soft"
+        )
+        st.rerun()
 
 with col2:
     if st.button("Flirty opener", use_container_width=True):
@@ -341,6 +359,17 @@ with col3:
     if st.button("Upsell opener", use_container_width=True):
         st.session_state.suggested_opener = obtener_opener("opener_upsell", st.session_state.faq_data) or ""
         st.session_state.suggested_opener_type = "opener_upsell"
+
+if latest_soft_opener:
+    if latest_soft_opener["status"] == "pending":
+        st.info("Generating soft opener...")
+    elif latest_soft_opener["status"] == "processing":
+        st.info("Local AI is preparing a soft opener...")
+    elif latest_soft_opener["status"] == "done" and latest_soft_opener.get("suggestion_text"):
+        st.session_state.suggested_opener = latest_soft_opener["suggestion_text"]
+        st.session_state.suggested_opener_type = "opener_soft"
+    elif latest_soft_opener["status"] == "error":
+        st.warning(f"Soft opener error: {latest_soft_opener.get('error_text', 'unknown error')}")
 
 if st.session_state.suggested_opener:
     st.info(st.session_state.suggested_opener)
@@ -414,9 +443,8 @@ for i, mensaje in enumerate(db_chat_messages[-40:]):
                 st.rerun()
 
 if hay_pendiente:
-    time.sleep(2)
+    time.sleep(3)
     st.rerun()
-
 
 # ----------------------------
 # Chat input

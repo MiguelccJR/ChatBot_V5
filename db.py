@@ -160,3 +160,68 @@ def mark_chat_message_processed(message_id: int, status: str = "done", error_tex
         .execute()
     )
     return response.data
+
+def create_opener_request(session_id: str, opener_type: str = "soft"):
+    supabase = get_supabase()
+    response = (
+        supabase.table("opener_suggestions")
+        .insert({
+            "session_id": session_id,
+            "opener_type": opener_type,
+            "status": "pending"
+        })
+        .execute()
+    )
+    return response.data[0]
+
+
+def get_latest_opener_request(session_id: str, opener_type: str = "soft"):
+    supabase = get_supabase()
+    response = (
+        supabase.table("opener_suggestions")
+        .select("*")
+        .eq("session_id", session_id)
+        .eq("opener_type", opener_type)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if response.data:
+        return response.data[0]
+    return None
+
+
+def get_pending_opener_requests(limit: int = 5):
+    supabase = get_supabase()
+    response = (
+        supabase.table("opener_suggestions")
+        .select("*")
+        .eq("status", "pending")
+        .order("created_at")
+        .limit(limit)
+        .execute()
+    )
+    return response.data
+
+
+def update_opener_request(
+    opener_id: int,
+    status: str,
+    suggestion_text: str | None = None,
+    error_text: str | None = None,
+):
+    supabase = get_supabase()
+
+    payload = {
+        "status": status,
+        "suggestion_text": suggestion_text,
+        "error_text": error_text,
+    }
+
+    response = (
+        supabase.table("opener_suggestions")
+        .update(payload)
+        .eq("id", opener_id)
+        .execute()
+    )
+    return response.data
