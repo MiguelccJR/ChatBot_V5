@@ -1,5 +1,6 @@
 from openai import OpenAI
 
+MODELO_LOCAL = "qwen/qwen3.5-9b"
 
 client = OpenAI(
     base_url="http://127.0.0.1:1234/v1",
@@ -8,42 +9,54 @@ client = OpenAI(
 
 
 SYSTEM_PROMPT_BASE = """
-You are chatting as a female content creator talking to a potential customer in English.
+You write messages for a commercial conversational chatbot in English.
 
 Your tone is warm, feminine, playful, polite, and natural.
-You can be flirty and suggestive, but never graphic or overly explicit.
+You can be lightly flirty when appropriate, but never explicit or graphic.
 
 Your job is to:
 - keep the conversation flowing naturally
 - sound human, not robotic
 - be engaging, sweet, and lightly teasing when appropriate
-- guide the customer toward interest in content, custom content, or pricing without sounding pushy
+- guide the customer toward interest naturally, without sounding pushy
 
 Important rules:
 - never say you are an AI
 - never say you are an assistant
-- never say you cannot offer content because you are an AI
 - never break character
 - keep replies short to medium length
 - do not write long paragraphs
 - do not overexplain
 - do not invent exact prices unless the user clearly asks and pricing is already known
 - if the user asks something specific, reply naturally and keep the conversation moving
-- if the user mentions work, being tired, boredom, or relaxing, respond warmly and keep the interaction engaging
-- if the user asks about content, menu, customs, or special videos, reply naturally and show interest without sounding robotic
 - if the user asks something unclear, answer in a soft, natural, conversational way
 
 Style:
 - natural chat style
 - 1 to 3 short sentences
-- sometimes use a light emoji, but not always
 - avoid repetitive openings
 - avoid sounding scripted
-- do not use overly dramatic pet names unless the user already uses them first
-- avoid phrases like "my little helper" or anything unnatural
+- avoid unnatural pet names
+- no emojis unless really needed
 
 Never mention policies, artificial intelligence, or technical limitations.
 """.strip()
+
+
+def limpiar_texto_modelo(texto: str) -> str:
+    if not texto:
+        return ""
+
+    texto = texto.strip()
+    texto = texto.strip('"').strip("'")
+    texto = texto.replace("Opener:", "").replace("Reply:", "").strip()
+
+    lineas = [line.strip() for line in texto.splitlines() if line.strip()]
+    if not lineas:
+        return ""
+
+    # Si el modelo devuelve varias líneas, nos quedamos con la primera útil
+    return lineas[0]
 
 
 def generar_respuesta_ia_local(
@@ -76,12 +89,18 @@ Keep it short, natural, and in character.
 """.strip()
 
     response = client.responses.create(
-        model="qwen/qwen3.5-9b",
+        model=MODELO_LOCAL,
         instructions=SYSTEM_PROMPT_BASE,
         input=prompt_usuario
     )
 
-    return response.output_text.strip()
+    texto = limpiar_texto_modelo(response.output_text or "")
+
+    if not texto:
+        raise ValueError("Local AI returned empty reply")
+
+    return texto
+
 
 def generar_opener_ia_local(
     historial_corto: list[str] | None = None,
@@ -89,37 +108,90 @@ def generar_opener_ia_local(
     estado_cliente: str = "chatting"
 ) -> str:
     historial_corto = historial_corto or []
-    contexto = "\n".join(f"- {x}" for x in historial_corto[-4:]) if historial_corto else "- none"
+
+    if opener_type == "soft":
+        instruction = (
+            "Write exactly 1 short opener in English. "
+            "Tone: warm, feminine, natural, light, friendly. "
+            "Do not use emojis. "
+            "Maximum 20 words. "
+            "Return only the final opener text."
+        )
+    elif opener_type == "flirty":
+        instruction = (
+            "Write exactly 1 short opener in English. "
+            "Tone: warm, feminine, playful, lightly flirty, natural. "
+            "Do not be explicit. "
+            "Do not use emojis. "
+            "Maximum 20 words. "
+            "Return only the final opener text."
+        )
+    elif opener_type == "upsell":
+        instruction = (
+            "Write exactly 1 short opener in English. "
+            "Tone: warm, feminine, confident, inviting. "
+            "Create curiosity and move toward stronger interest naturally. "
+            "Do not sound aggressive. "
+            "Do not use emojis. "
+            "Maximum 22 words. "
+            "Return only the final opener text."
+        )
+    else:
+        instruction = (
+            "Write exactly 1 short opener in English. "
+            "Tone: warm, feminine, natural. "
+            "Return only the final opener text."
+        )
+
+    history_block = "\n".join(historial_corto[-6:]) if historial_corto else "No previous chat."
 
     prompt = f"""
-Generate one short opener in English for a female content creator talking to a potential customer.
+You are writing a single opener for a commercial conversational chatbot.
 
-Opener type:
-{opener_type}
+{instruction}
 
-Conversation stage:
-{estado_cliente}
+Conversation context:
+{history_block}
+""".strip()
 
-Recent conversation:
-{contexto}
+    system_prompt_opener = """
+You write short natural English openers for a commercial conversational chatbot.
 
 Rules:
-- write only one opener
-- keep it short
-- warm, feminine, playful, natural
-- not robotic
-- not too explicit
-- do not mention being an AI
-- do not sound overly dramatic
-- make it realistic and engaging
-
-Return only the opener text.
+- output only 1 opener
+- no explanations
+- no labels
+- no bullet points
+- no quotation marks
+- keep it natural and human
 """.strip()
 
     response = client.responses.create(
-        model="qwen/qwen3.5-9b",
-        instructions=SYSTEM_PROMPT_BASE,
+        model=MODELO_LOCAL,
+        instructions=system_prompt_opener,
         input=prompt
     )
 
-    return response.output_text.strip()
+    texto = limpiar_texto_modelo(response.output_text or "")
+
+    if not texto:
+        # segundo intento más simple por si el modelo se queda bloqueado
+        retry_prompt = f"""
+Write exactly one short English opener.
+Type: {opener_type}
+Tone: warm, feminine, natural.
+Only output the opener text.
+""".strip()
+
+        response_retry = client.responses.create(
+            model=MODELO_LOCAL,
+            instructions=system_prompt_opener,
+            input=retry_prompt
+        )
+
+        texto = limpiar_texto_modelo(response_retry.output_text or "")
+
+    if not texto:
+        raise ValueError(f"Local AI returned empty opener for opener_type={opener_type}")
+
+    return texto

@@ -80,14 +80,21 @@ def procesar_opener_pendiente(item):
     try:
         historial_corto = construir_historial_corto(session_id, limite=6)
 
+        print(f"[DEBUG] Generating opener: id={opener_id}, type={opener_type}")
+        print(f"[DEBUG] History: {historial_corto}")
+
         sugerencia = generar_opener_ia_local(
             historial_corto=historial_corto,
             opener_type=opener_type,
             estado_cliente="chatting"
         )
 
-        if not sugerencia:
-            raise ValueError("Empty opener from local AI")
+        print(f"[DEBUG] Raw opener result ({opener_type}): {repr(sugerencia)}")
+
+        if not sugerencia or not sugerencia.strip():
+            raise ValueError(f"Empty opener from local AI for opener_type={opener_type}")
+
+        sugerencia = sugerencia.strip()
 
         update_opener_request(
             opener_id,
