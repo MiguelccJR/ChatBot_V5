@@ -91,6 +91,27 @@ def inicializar_estado_app():
     if "chat_activo" not in st.session_state:
         st.session_state.chat_activo = None
 
+    # Backfill missing keys for old chats created before new schema
+    for cid, chat in st.session_state.chats.items():
+        if "nombre" not in chat:
+            chat["nombre"] = cid
+        if "plataforma" not in chat:
+            chat["plataforma"] = "test"
+        if "historial" not in chat:
+            chat["historial"] = []
+        if "estado_bot" not in chat:
+            chat["estado_bot"] = crear_estado_conversacion()
+        if "ultimo_resultado" not in chat:
+            chat["ultimo_resultado"] = None
+        if "score" not in chat:
+            chat["score"] = 0
+        if "etiquetas" not in chat:
+            chat["etiquetas"] = []
+        if "turn_counter" not in chat:
+            chat["turn_counter"] = 0
+        if "db_session_id" not in chat:
+            chat["db_session_id"] = None
+
     if "mostrar_debug" not in st.session_state:
         st.session_state.mostrar_debug = True
 
@@ -221,7 +242,7 @@ with st.sidebar:
     st.write(f"**Platform:** {chat_activo['plataforma']}")
     st.write(f"**Score:** {chat_activo['score']}")
     st.write(f"**Tags:** {', '.join(chat_activo['etiquetas']) if chat_activo['etiquetas'] else '-'}")
-    st.write(f"**DB session:** {chat_activo['db_session_id'] if chat_activo['db_session_id'] else '-'}")
+    st.write(f"**DB session:** {chat_activo.get('db_session_id') if chat_activo.get('db_session_id') else '-'}")
 
     if st.session_state.mostrar_debug:
         st.divider()
@@ -293,7 +314,7 @@ with col_refresh1:
         st.rerun()
 
 with col_refresh2:
-    if chat_activo["db_session_id"]:
+    if chat_activo.get("db_session_id"):
         st.caption(f"Session ID: {chat_activo['db_session_id']}")
 
 if ultimo_pendiente:
