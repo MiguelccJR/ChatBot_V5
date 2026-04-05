@@ -4,7 +4,7 @@ from db import (
     get_chat_messages,
     create_chat_message,
     update_chat_message_status,
-    get_pending_opener_request,
+    get_pending_opener_requests,
     update_opener_request,
 )
 from local_ai import generar_respuesta_ia_local
