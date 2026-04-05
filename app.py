@@ -369,12 +369,6 @@ chat_activo = obtener_chat_activo()
 
 st.subheader(f"Active chat: {chat_activo['nombre']} [{chat_activo['plataforma']}]")
 
-if ultimo_pendiente:
-    if ultimo_pendiente["status"] == "pending_ai":
-        st.info("Reading...")
-    elif ultimo_pendiente["status"] == "processing":
-        st.info("Typing...")
-
 col_refresh1, col_refresh2 = st.columns([1, 4])
 
 with col_refresh1:
@@ -395,6 +389,12 @@ if st.session_state.db_session_id is not None:
         db_chat_messages = get_chat_messages(st.session_state.db_session_id)
     except Exception as e:
         st.error(f"Error loading chat messages: {e}")
+
+if ultimo_pendiente:
+    if ultimo_pendiente["status"] == "pending_ai":
+        st.info("Reading...")
+    elif ultimo_pendiente["status"] == "processing":
+        st.info("Typing...")
 
 mensajes_pendientes = [
     m for m in db_chat_messages
