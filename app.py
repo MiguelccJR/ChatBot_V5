@@ -1,4 +1,4 @@
-import streamlit as st
+ï»¿import streamlit as st
 import time
 
 from faq_bot_v5 import crear_estado_conversacion
@@ -111,7 +111,7 @@ def solicitar_opener_ai(chat, opener_type):
 def procesar_estado_opener(chat):
     """
     Lee el opener pendiente del chat activo y actualiza el estado del chat.
-    Devuelve el último opener request o None.
+    Devuelve el Ãºltimo opener request o None.
     """
     if chat["db_session_id"] is None:
         return None
@@ -166,7 +166,7 @@ def inicializar_estado_app():
         if "plataforma" not in chat:
             chat["plataforma"] = "test"
 
-        # Migración simple de nombre viejo
+        # MigraciÃ³n simple de nombre viejo
         if chat["plataforma"] == "onlyfans":
             chat["plataforma"] = "webchat"
 
@@ -517,7 +517,7 @@ for i, mensaje in enumerate(db_chat_messages[-40:]):
                 st.success("Feedback saved")
                 st.rerun()
 
-# Auto-refresh mientras el worker está trabajando
+# Auto-refresh mientras el worker estÃ¡ trabajando
 if hay_pendiente or hay_opener_pendiente:
     time.sleep(2)
     st.rerun()
