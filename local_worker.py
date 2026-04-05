@@ -7,7 +7,7 @@ from db import (
     get_pending_opener_requests,
     update_opener_request,
 )
-from local_ai import generar_respuesta_ia_local
+from local_ai import generar_respuesta_ia_local, generar_opener_ia_local
 
 
 POLL_SECONDS = 1.5
