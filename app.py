@@ -379,10 +379,6 @@ with col_refresh2:
     if st.session_state.db_session_id:
         st.caption(f"Session ID: {st.session_state.db_session_id}")
 
-if hay_pendiente:
-    time.sleep(1)
-    st.rerun()
-
 db_chat_messages = []
 if st.session_state.db_session_id is not None:
     try:
@@ -400,6 +396,9 @@ mensajes_pendientes = [
     m for m in db_chat_messages
     if m["role"] == "user" and m["status"] in ("pending_ai", "processing")
 ]
+if hay_pendiente:
+    time.sleep(1)
+    st.rerun()
 
 hay_pendiente = len(mensajes_pendientes) > 0
 ultimo_pendiente = mensajes_pendientes[-1] if hay_pendiente else None
