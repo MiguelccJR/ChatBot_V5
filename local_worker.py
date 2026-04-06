@@ -1,4 +1,4 @@
-import time
+Ôªøimport time
 from datetime import datetime
 
 from db import (
@@ -14,8 +14,8 @@ from local_ai import generar_respuesta_ia_local, generar_opener_ia_local
 
 POLL_SECONDS = 1.5
 BURST_WINDOW_SECONDS = 12
-MAX_GROUP_MESSAGES = 3
-HISTORY_LIMIT = 6
+MAX_GROUP_MESSAGES = 4
+HISTORY_LIMIT = 7
 
 
 def parse_dt(value):
@@ -46,11 +46,11 @@ def construir_historial_corto(session_id: str, hasta_message_id: int | None = No
 
 def agrupar_mensajes(lista_pendientes):
     """
-    Agrupa mensajes del mismo chat enviados en r·faga.
+    Agrupa mensajes del mismo chat enviados en r√°faga.
     Solo agrupa mensajes consecutivos en la cola:
     - mismo session_id
     - dentro de una ventana corta de tiempo
-    - m·ximo MAX_GROUP_MESSAGES
+    - m√°ximo MAX_GROUP_MESSAGES
     """
     grupos = []
     i = 0
