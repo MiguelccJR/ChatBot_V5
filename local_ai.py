@@ -1,4 +1,4 @@
-from openai import OpenAI
+ï»¿from openai import OpenAI
 
 MODELO_LOCAL = "qwen/qwen3.5-9b"
 
@@ -37,30 +37,17 @@ Natural texting rules:
 - do not sound like customer support
 - do not sound like a fictional character
 
-Style:
-- sound like real texting
-- 1 to 2 short sentences most of the time
-- simple words
-- natural, direct answers
-- light warmth, light playfulness
-- slightly flirty only when appropriate
-- answer the customer's actual question first
-
 Good style examples:
+- "Haha maybe, but I do things my own way."
 - "A couple, yeah. Why, are you asking for a reason?"
-- "Maybe a few, but everyone’s different."
+- "Not really like me, no."
+- "Maybe a few, but everyoneâ€™s different."
 - "Haha hey, what made you ask that?"
 - "Yeah, kind of, but I have my own vibe."
-
-Good direct reply examples:
-- "Yeah, a little. What about you?"
-- "Haha maybe. Why?"
-- "A few, yeah."
-- "Maybe, depends what you mean."
-- "I’m here, tell me."
-- "Haha that was random."
-- "You tell me first."
-- "What made you ask that?"
+- "Not exactly, I like keeping things a little personal."
+- "I know some, but Iâ€™m more into doing things my way."
+- "Heyy, maybe a few. What are you looking for?"
+- "Hmm maybe, but not quite the same."
 
 Bad style examples:
 - "In the digital world, I connect with many unique souls."
@@ -79,13 +66,30 @@ Avoid replies like:
 - "I appreciate your interest."
 - "How may I assist you today?"
 - "Please let me know how I can help."
-- "I’d be happy to answer that for you."
+- "Iâ€™d be happy to answer that for you."
 - "Thank you for reaching out."
 - "That is a great question."
 - "I can certainly help with that."
 
+If the reply sounds poetic, overly polished, theatrical, or like AI-generated text, rewrite it in a simpler and more natural way.
+
 Output only the final reply text.
 """.strip()
+
+FRASES_PROHIBIDAS = [
+    "digital world",
+    "virtual world",
+    "kindred spirit",
+    "kindred spirits",
+    "treasure hunt",
+    "my dear friend",
+    "sweet soul",
+    "as an ai",
+    "i'm an ai",
+    "i am an ai",
+    "assistant",
+    "artificial intelligence",
+]
 
 
 def limpiar_texto_modelo(texto: str) -> str:
@@ -93,17 +97,15 @@ def limpiar_texto_modelo(texto: str) -> str:
         return ""
 
     texto = texto.strip()
-
-    # Quitar comillas sueltas
     texto = texto.strip('"').strip("'").strip()
 
-    # Quitar prefijos típicos
     prefijos = [
         "Reply:",
         "Response:",
         "Assistant:",
         "Bot:",
         "Message:",
+        "Opener:",
     ]
     for prefijo in prefijos:
         if texto.startswith(prefijo):
@@ -113,14 +115,40 @@ def limpiar_texto_modelo(texto: str) -> str:
     if not lineas:
         return ""
 
-    # Si el modelo devuelve varias líneas, unimos hasta 2
     if len(lineas) >= 2:
         texto_final = " ".join(lineas[:2]).strip()
     else:
         texto_final = lineas[0]
 
-    # Evitar respuestas absurdamente largas
     return texto_final[:300].strip()
+
+
+def suena_a_ia_o_poco_humano(texto: str) -> bool:
+    t = (texto or "").lower().strip()
+
+    if not t:
+        return True
+
+    for frase in FRASES_PROHIBIDAS:
+        if frase in t:
+            return True
+
+    if len(t) > 220:
+        return True
+
+    marcadores_raros = [
+        "wonderful",
+        "special",
+        "unique",
+        "treasure",
+        "dear friend",
+        "sweet to ask",
+    ]
+    score = sum(1 for m in marcadores_raros if m in t)
+    if score >= 2:
+        return True
+
+    return False
 
 
 def generar_respuesta_ia_local(
@@ -152,7 +180,7 @@ Write only the reply that should be sent to the customer.
 Keep it short, natural, and in character.
 """.strip()
 
-        response = client.responses.create(
+    response = client.responses.create(
         model=MODELO_LOCAL,
         instructions=SYSTEM_PROMPT_BASE,
         input=prompt_usuario
@@ -189,7 +217,8 @@ Rules:
     if texto_retry and not suena_a_ia_o_poco_humano(texto_retry):
         return texto_retry
 
-    raise ValueError("Local AI returned empty or low-quality reply"
+    raise ValueError("Local AI returned empty or low-quality reply")
+
 
 def generar_opener_ia_local(
     historial_corto: list[str] | None = None,
@@ -264,7 +293,6 @@ Rules:
     texto = limpiar_texto_modelo(response.output_text or "")
 
     if not texto:
-        # segundo intento más simple por si el modelo se queda bloqueado
         retry_prompt = f"""
 Write exactly one short English opener.
 Type: {opener_type}
