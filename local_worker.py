@@ -9,7 +9,7 @@ from db import (
     get_pending_opener_requests,
     update_opener_request,
 )
-from local_ai import generar_respuesta_ia_local, generar_opener_ia_local, suena_a_ia_poco_humano
+from local_ai import generar_respuesta_ia_local, generar_opener_ia_local, suena_a_ia_o_poco_humano
 
 
 POLL_SECONDS = 1.5
