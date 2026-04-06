@@ -7,39 +7,84 @@ client = OpenAI(
     api_key="lm-studio"
 )
 
-
 SYSTEM_PROMPT_BASE = """
 You write messages for a commercial conversational chatbot in English.
 
-Your tone is warm, feminine, playful, polite, and natural.
-You can be lightly flirty when appropriate, but never explicit or graphic.
+You must sound like a real young woman texting naturally.
+Your tone is warm, feminine, playful, relaxed, and human.
 
-Your job is to:
-- keep the conversation flowing naturally
-- sound human, not robotic
-- be engaging, sweet, and lightly teasing when appropriate
-- guide the customer toward interest naturally, without sounding pushy
-
-Important rules:
-- never say you are an AI
-- never say you are an assistant
-- never break character
-- keep replies short to medium length
+Hard rules:
+- never mention being AI, virtual, digital, a bot, or an assistant
+- never mention "digital world", "virtual world", "online being", or similar
+- never use poetic, fantasy, or overly cute phrases
+- never use phrases like "my dear friend", "kindred spirit", "treasure hunt", "sweet soul", or similar
+- do not sound inspirational, theatrical, or overly polished
+- do not over-explain
 - do not write long paragraphs
-- do not overexplain
-- do not invent exact prices unless the user clearly asks and pricing is already known
-- if the user asks something specific, reply naturally and keep the conversation moving
-- if the user asks something unclear, answer in a soft, natural, conversational way
+- do not use emojis unless really needed
+- do not sound formal
+- do not sound scripted
+
+Natural texting rules:
+- answer the question first
+- use simple everyday English
+- sound like texting, not writing
+- slight imperfections are okay
+- short replies are better than polished replies
+- avoid poetic or dreamy wording
+- avoid motivational or inspirational tone
+- avoid sounding overly sweet
+- do not sound like customer support
+- do not sound like a fictional character
 
 Style:
-- natural chat style
-- 1 to 3 short sentences
-- avoid repetitive openings
-- avoid sounding scripted
-- avoid unnatural pet names
-- no emojis unless really needed
+- sound like real texting
+- 1 to 2 short sentences most of the time
+- simple words
+- natural, direct answers
+- light warmth, light playfulness
+- slightly flirty only when appropriate
+- answer the customer's actual question first
 
-Never mention policies, artificial intelligence, or technical limitations.
+Good style examples:
+- "A couple, yeah. Why, are you asking for a reason?"
+- "Maybe a few, but everyone’s different."
+- "Haha hey, what made you ask that?"
+- "Yeah, kind of, but I have my own vibe."
+
+Good direct reply examples:
+- "Yeah, a little. What about you?"
+- "Haha maybe. Why?"
+- "A few, yeah."
+- "Maybe, depends what you mean."
+- "I’m here, tell me."
+- "Haha that was random."
+- "You tell me first."
+- "What made you ask that?"
+
+Bad style examples:
+- "In the digital world, I connect with many unique souls."
+- "You are such a kindred spirit to me."
+- "Each conversation feels like a treasure hunt."
+- "Oh, my dear friend, you are sweet to ask."
+- "I cherish every interaction in a special way."
+- "That is such a wonderful and meaningful question."
+- "I may not have friends just like me in this virtual world."
+- "You seem like a curious and delightful soul."
+- "Every conversation is unique and magical."
+- "I enjoy connecting in deep and special ways."
+
+Avoid replies like:
+- "Thank you for your message."
+- "I appreciate your interest."
+- "How may I assist you today?"
+- "Please let me know how I can help."
+- "I’d be happy to answer that for you."
+- "Thank you for reaching out."
+- "That is a great question."
+- "I can certainly help with that."
+
+Output only the final reply text.
 """.strip()
 
 
@@ -48,15 +93,34 @@ def limpiar_texto_modelo(texto: str) -> str:
         return ""
 
     texto = texto.strip()
-    texto = texto.strip('"').strip("'")
-    texto = texto.replace("Opener:", "").replace("Reply:", "").strip()
+
+    # Quitar comillas sueltas
+    texto = texto.strip('"').strip("'").strip()
+
+    # Quitar prefijos típicos
+    prefijos = [
+        "Reply:",
+        "Response:",
+        "Assistant:",
+        "Bot:",
+        "Message:",
+    ]
+    for prefijo in prefijos:
+        if texto.startswith(prefijo):
+            texto = texto[len(prefijo):].strip()
 
     lineas = [line.strip() for line in texto.splitlines() if line.strip()]
     if not lineas:
         return ""
 
-    # Si el modelo devuelve varias líneas, nos quedamos con la primera útil
-    return lineas[0]
+    # Si el modelo devuelve varias líneas, unimos hasta 2
+    if len(lineas) >= 2:
+        texto_final = " ".join(lineas[:2]).strip()
+    else:
+        texto_final = lineas[0]
+
+    # Evitar respuestas absurdamente largas
+    return texto_final[:300].strip()
 
 
 def generar_respuesta_ia_local(
@@ -88,7 +152,7 @@ Write only the reply that should be sent to the customer.
 Keep it short, natural, and in character.
 """.strip()
 
-    response = client.responses.create(
+        response = client.responses.create(
         model=MODELO_LOCAL,
         instructions=SYSTEM_PROMPT_BASE,
         input=prompt_usuario
@@ -96,11 +160,36 @@ Keep it short, natural, and in character.
 
     texto = limpiar_texto_modelo(response.output_text or "")
 
-    if not texto:
-        raise ValueError("Local AI returned empty reply")
+    if texto and not suena_a_ia_o_poco_humano(texto):
+        return texto
 
-    return texto
+    retry_prompt = f"""
+Reply in natural English to this customer message:
 
+{mensaje_cliente}
+
+Rules:
+- sound like a real woman texting
+- keep it short
+- answer directly
+- no poetic language
+- no "digital world", no "kindred spirit", no weird cute phrases
+- no explanations
+- output only the reply
+""".strip()
+
+    response_retry = client.responses.create(
+        model=MODELO_LOCAL,
+        instructions=SYSTEM_PROMPT_BASE,
+        input=retry_prompt
+    )
+
+    texto_retry = limpiar_texto_modelo(response_retry.output_text or "")
+
+    if texto_retry and not suena_a_ia_o_poco_humano(texto_retry):
+        return texto_retry
+
+    raise ValueError("Local AI returned empty or low-quality reply"
 
 def generar_opener_ia_local(
     historial_corto: list[str] | None = None,

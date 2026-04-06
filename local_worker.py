@@ -114,16 +114,23 @@ def procesar_mensaje_o_grupo(grupo):
         if len(textos) == 1:
             contenido_para_ia = textos[0]
         else:
-            contenido_para_ia = "Customer sent several quick messages:\n" + "\n".join(
-                f"- {t}" for t in textos
+            contenido_para_ia = (
+                "The customer sent several quick messages. "
+                "Reply with one natural message. "
+                "Answer the main question first, and briefly acknowledge the follow-up.\n\n"
+                + "\n".join(f"- {t}" for t in textos)
             )
+
+        print(f"[DEBUG] Input for AI: {repr(contenido_para_ia)}")
+        print(f"[DEBUG] History used: {historial_corto}")
 
         respuesta = generar_respuesta_ia_local(
             mensaje_cliente=contenido_para_ia,
             historial_corto=historial_corto,
             intenciones=[],
             estado_cliente="chatting"
-        )
+)
+        print(f"[DEBUG] Raw final reply: {repr(respuesta)}")
 
         if not respuesta or not respuesta.strip():
             raise ValueError("Empty response from local AI")
