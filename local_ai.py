@@ -309,6 +309,30 @@ Only output the opener text.
         texto = limpiar_texto_modelo(response_retry.output_text or "")
 
     if not texto:
-        raise ValueError(f"Local AI returned empty opener for opener_type={opener_type}")
+            fallback = generar_respuesta_fallback(mensaje_cliente)
+        if fallback:
+            return fallback
 
-    return texto
+    raise ValueError("Local AI returned empty or low-quality reply")
+         return texto
+         
+    def generar_respuesta_fallback(mensaje_cliente: str) -> str:
+    t = (mensaje_cliente or "").lower().strip()
+
+    if "someone else" in t or "with someone else" in t:
+        return "Sometimes maybe, depends what you mean. What kind of content are you into?"
+
+    if "hello" in t or "hellow" in t or "hi" == t:
+        return "Hey, I'm here. Tell me."
+
+    if "friend" in t:
+        return "A couple maybe, but everyone does things differently. Why do you ask?"
+
+    if "price" in t or "how much" in t:
+        return "Depends what you're looking for really. What kind of thing did you have in mind?"
+
+    if "custom" in t:
+        return "Yeah, I can do customs sometimes. What were you thinking about?"
+
+    return "Hmm maybe. Tell me a bit more about what you mean."
+ 

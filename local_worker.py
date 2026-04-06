@@ -9,7 +9,7 @@ from db import (
     get_pending_opener_requests,
     update_opener_request,
 )
-from local_ai import generar_respuesta_ia_local, generar_opener_ia_local
+from local_ai import generar_respuesta_ia_local, generar_opener_ia_local, suena_a_ia_poco_humano
 
 
 POLL_SECONDS = 1.5
@@ -28,20 +28,27 @@ def parse_dt(value):
         return None
 
 
-def construir_historial_corto(session_id: str, hasta_message_id: int | None = None, limite: int = HISTORY_LIMIT):
+def construir_historial_corto(session_id: str, hasta_message_id: int | None = None, limite: int = 6):
     mensajes = get_chat_messages(session_id)
 
     if hasta_message_id is not None:
         mensajes = [m for m in mensajes if int(m.get("id", 0)) < int(hasta_message_id)]
 
     historial = []
-    for m in mensajes[-limite:]:
+    for m in mensajes:
         role = m.get("role", "user")
         content = (m.get("content") or "").strip()
-        if content:
-            historial.append(f"{role}: {content}")
 
-    return historial
+        if not content:
+            continue
+
+        # No arrastrar respuestas malas/artificiales del assistant
+        if role == "assistant" and suena_a_ia_o_poco_humano(content):
+            continue
+
+        historial.append(f"{role}: {content}")
+
+    return historial[-limite:]
 
 
 def agrupar_mensajes(lista_pendientes):
