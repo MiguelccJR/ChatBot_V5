@@ -1,4 +1,6 @@
 import time
+from datetime import datetime
+
 from db import (
     get_pending_ai_messages,
     get_chat_messages,
@@ -11,64 +13,153 @@ from local_ai import generar_respuesta_ia_local, generar_opener_ia_local
 
 
 POLL_SECONDS = 1.5
+BURST_WINDOW_SECONDS = 12
+MAX_GROUP_MESSAGES = 3
+HISTORY_LIMIT = 6
 
 
-def construir_historial_corto(session_id: str, limite: int = 6):
+def parse_dt(value):
+    if not value:
+        return None
+
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def construir_historial_corto(session_id: str, hasta_message_id: int | None = None, limite: int = HISTORY_LIMIT):
     mensajes = get_chat_messages(session_id)
+
+    if hasta_message_id is not None:
+        mensajes = [m for m in mensajes if int(m.get("id", 0)) < int(hasta_message_id)]
 
     historial = []
     for m in mensajes[-limite:]:
         role = m.get("role", "user")
-        content = m.get("content", "")
-        historial.append(f"{role}: {content}")
+        content = (m.get("content") or "").strip()
+        if content:
+            historial.append(f"{role}: {content}")
 
     return historial
 
 
-def procesar_mensaje_pendiente(mensaje):
-    message_id = mensaje["id"]
-    session_id = mensaje["session_id"]
-    turn_number = mensaje.get("turn_number", 0)
-    content = mensaje["content"]
+def agrupar_mensajes(lista_pendientes):
+    """
+    Agrupa mensajes del mismo chat enviados en ráfaga.
+    Solo agrupa mensajes consecutivos en la cola:
+    - mismo session_id
+    - dentro de una ventana corta de tiempo
+    - máximo MAX_GROUP_MESSAGES
+    """
+    grupos = []
+    i = 0
 
-    # Marcar como procesando
-    update_chat_message_status(message_id, "processing")
+    while i < len(lista_pendientes):
+        actual = lista_pendientes[i]
+        grupo = [actual]
+
+        j = i + 1
+        while j < len(lista_pendientes) and len(grupo) < MAX_GROUP_MESSAGES:
+            candidato = lista_pendientes[j]
+
+            if candidato.get("session_id") != actual.get("session_id"):
+                break
+
+            t1 = parse_dt(grupo[-1].get("created_at"))
+            t2 = parse_dt(candidato.get("created_at"))
+
+            if not t1 or not t2:
+                break
+
+            delta = (t2 - t1).total_seconds()
+
+            if delta <= BURST_WINDOW_SECONDS:
+                grupo.append(candidato)
+                j += 1
+            else:
+                break
+
+        grupos.append(grupo)
+        i += len(grupo)
+
+    return grupos
+
+
+def procesar_mensaje_o_grupo(grupo):
+    first_msg = grupo[0]
+    last_msg = grupo[-1]
+
+    first_message_id = first_msg["id"]
+    last_message_id = last_msg["id"]
+    session_id = first_msg["session_id"]
+    turn_number = last_msg.get("turn_number", 0)
+
+    for msg in grupo:
+        update_chat_message_status(msg["id"], "processing")
 
     try:
-        historial_corto = construir_historial_corto(session_id, limite=6)
+        historial_corto = construir_historial_corto(
+            session_id=session_id,
+            hasta_message_id=first_message_id,
+            limite=HISTORY_LIMIT
+        )
+
+        textos = [(m.get("content") or "").strip() for m in grupo]
+        textos = [t for t in textos if t]
+
+        if not textos:
+            raise ValueError("Empty user message group")
+
+        if len(textos) == 1:
+            contenido_para_ia = textos[0]
+        else:
+            contenido_para_ia = "Customer sent several quick messages:\n" + "\n".join(
+                f"- {t}" for t in textos
+            )
 
         respuesta = generar_respuesta_ia_local(
-            mensaje_cliente=content,
+            mensaje_cliente=contenido_para_ia,
             historial_corto=historial_corto,
             intenciones=[],
             estado_cliente="chatting"
         )
 
-        if not respuesta:
+        if not respuesta or not respuesta.strip():
             raise ValueError("Empty response from local AI")
 
-        # Guardar mensaje del assistant
         create_chat_message(
             session_id=session_id,
             turn_number=turn_number,
             role="assistant",
-            content=respuesta,
+            content=respuesta.strip(),
             status="done",
             source="local_ai",
-            reply_to_message_id=message_id,
+            reply_to_message_id=last_message_id,
             idioma="en",
             categorias_detectadas=[],
             categorias_respondibles=[]
         )
 
-        # Marcar mensaje user como resuelto
-        update_chat_message_status(message_id, "done")
+        for msg in grupo:
+            update_chat_message_status(msg["id"], "done")
 
-        print(f"[OK] Replied to message {message_id}")
+        if len(grupo) == 1:
+            print(f"[OK] Replied to message {first_message_id}")
+        else:
+            ids = [m['id'] for m in grupo]
+            print(f"[OK] Replied to grouped messages {ids}")
 
     except Exception as e:
-        update_chat_message_status(message_id, "error", error_text=str(e))
-        print(f"[ERROR] Message {message_id}: {e}")
+        for msg in grupo:
+            update_chat_message_status(msg["id"], "error", error_text=str(e))
+
+        if len(grupo) == 1:
+            print(f"[ERROR] Message {first_message_id}: {e}")
+        else:
+            ids = [m['id'] for m in grupo]
+            print(f"[ERROR] Group {ids}: {e}")
+
 
 def procesar_opener_pendiente(item):
     opener_id = item["id"]
@@ -81,7 +172,6 @@ def procesar_opener_pendiente(item):
         historial_corto = construir_historial_corto(session_id, limite=6)
 
         print(f"[DEBUG] Generating opener: id={opener_id}, type={opener_type}")
-        print(f"[DEBUG] History: {historial_corto}")
 
         sugerencia = generar_opener_ia_local(
             historial_corto=historial_corto,
@@ -94,12 +184,10 @@ def procesar_opener_pendiente(item):
         if not sugerencia or not sugerencia.strip():
             raise ValueError(f"Empty opener from local AI for opener_type={opener_type}")
 
-        sugerencia = sugerencia.strip()
-
         update_opener_request(
             opener_id,
             "done",
-            suggestion_text=sugerencia
+            suggestion_text=sugerencia.strip()
         )
 
         print(f"[OK] Generated {opener_type} opener {opener_id}")
@@ -112,6 +200,7 @@ def procesar_opener_pendiente(item):
         )
         print(f"[ERROR] Opener {opener_id}: {e}")
 
+
 def main():
     print("Local worker started. Waiting for pending items...")
 
@@ -122,10 +211,11 @@ def main():
                 for item in pendientes_openers:
                     procesar_opener_pendiente(item)
 
-            pendientes = get_pending_ai_messages(limit=5)
+            pendientes = get_pending_ai_messages(limit=20)
             if pendientes:
-                for mensaje in pendientes:
-                    procesar_mensaje_pendiente(mensaje)
+                grupos = agrupar_mensajes(pendientes)
+                for grupo in grupos:
+                    procesar_mensaje_o_grupo(grupo)
 
             time.sleep(POLL_SECONDS)
 

@@ -109,13 +109,13 @@ def get_chat_messages(session_id: str):
         supabase.table("chat_messages")
         .select("*")
         .eq("session_id", session_id)
-        .order("created_at")
+        .order("created_at", desc=False)
         .execute()
     )
-    return response.data
+    return response.data or []
 
 
-def get_pending_ai_messages(limit: int = 10):
+def get_pending_ai_messages(limit: int = 20):
     supabase = get_supabase()
     response = (
         supabase.table("chat_messages")
@@ -126,7 +126,7 @@ def get_pending_ai_messages(limit: int = 10):
         .limit(limit)
         .execute()
     )
-    return response.data
+    return response.data or []
 
 
 def update_chat_message_status(
