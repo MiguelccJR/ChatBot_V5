@@ -1,4 +1,4 @@
-﻿from openai import OpenAI
+﻿ from openai import OpenAI
 
 MODELO_LOCAL = "qwen/qwen3.5-9b"
 
@@ -151,6 +151,27 @@ def suena_a_ia_o_poco_humano(texto: str) -> bool:
     return False
 
 
+def generar_respuesta_fallback(mensaje_cliente: str) -> str:
+    t = (mensaje_cliente or "").lower().strip()
+
+    if "someone else" in t or "with someone else" in t:
+        return "Sometimes maybe, depends what you mean. What kind of content are you into?"
+
+    if "hello" in t or "hellow" in t or t == "hi":
+        return "Hey, I'm here. Tell me."
+
+    if "friend" in t:
+        return "A couple maybe, but everyone does things differently. Why do you ask?"
+
+    if "price" in t or "how much" in t:
+        return "Depends what you're looking for really. What kind of thing did you have in mind?"
+
+    if "custom" in t:
+        return "Yeah, I can do customs sometimes. What were you thinking about?"
+
+    return "Hmm maybe. Tell me a bit more about what you mean."
+
+
 def generar_respuesta_ia_local(
     mensaje_cliente: str,
     historial_corto: list[str] | None = None,
@@ -216,6 +237,10 @@ Rules:
 
     if texto_retry and not suena_a_ia_o_poco_humano(texto_retry):
         return texto_retry
+
+    fallback = generar_respuesta_fallback(mensaje_cliente)
+    if fallback:
+        return fallback
 
     raise ValueError("Local AI returned empty or low-quality reply")
 
@@ -309,30 +334,6 @@ Only output the opener text.
         texto = limpiar_texto_modelo(response_retry.output_text or "")
 
     if not texto:
-            fallback = generar_respuesta_fallback(mensaje_cliente)
-        if fallback:
-            return fallback
+        raise ValueError(f"Local AI returned empty opener for opener_type={opener_type}")
 
-    raise ValueError("Local AI returned empty or low-quality reply")
-         return texto
-         
-    def generar_respuesta_fallback(mensaje_cliente: str) -> str:
-    t = (mensaje_cliente or "").lower().strip()
-
-    if "someone else" in t or "with someone else" in t:
-        return "Sometimes maybe, depends what you mean. What kind of content are you into?"
-
-    if "hello" in t or "hellow" in t or "hi" == t:
-        return "Hey, I'm here. Tell me."
-
-    if "friend" in t:
-        return "A couple maybe, but everyone does things differently. Why do you ask?"
-
-    if "price" in t or "how much" in t:
-        return "Depends what you're looking for really. What kind of thing did you have in mind?"
-
-    if "custom" in t:
-        return "Yeah, I can do customs sometimes. What were you thinking about?"
-
-    return "Hmm maybe. Tell me a bit more about what you mean."
- 
+    return texto
