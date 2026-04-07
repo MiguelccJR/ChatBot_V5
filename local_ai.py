@@ -78,45 +78,17 @@ def limpiar_texto_modelo(texto: str) -> str:
     return texto_final[:300].strip()
 
 
-def suena_a_ia_o_poco_humano(texto: str) -> bool:
-    t = (texto or "").lower().strip()
-
-    if not t:
-        return True
-
-    for frase in FRASES_PROHIBIDAS:
-        if frase in t:
-            return True
-
-    if len(t) > 220:
-        return True
-
-    marcadores_raros = [
-        "wonderful",
-        "special",
-        "unique",
-        "treasure",
-        "dear friend",
-        "sweet to ask",
-    ]
-    score = sum(1 for m in marcadores_raros if m in t)
-    if score >= 2:
-        return True
-
-    return False
-
-
 def generar_respuesta_fallback(mensaje_cliente: str) -> str:
     t = (mensaje_cliente or "").lower().strip()
 
     if "someone else" in t or "with someone else" in t:
-        return "A couple maybe, but everyone does things a bit differently. What kind of content are you into?"
+        return "Maybe a couple, but not exactly like me. Why, are you curious?"
 
     if "hello" in t or "hellow" in t or t == "hi":
-        return "Hey, I'm here. What are you in the mood for?"
+        return "Heyy, I'm here. Tell me."
 
     if "friend" in t:
-        return "Maybe a couple, but not exactly like me. Why, are you curious?"
+        return "Maybe a couple, but everyone does things a little differently. Why do you ask?"
 
     if "price" in t or "how much" in t:
         return "Depends what you're looking for really. What kind of content did you have in mind?"
@@ -125,9 +97,9 @@ def generar_respuesta_fallback(mensaje_cliente: str) -> str:
         return "Yeah, I do customs sometimes. What were you thinking about?"
 
     if "content" in t or "what do you do" in t:
-        return "I do a mix, depends what you're into. What kind of thing do you usually like?"
+        return "I do a mix honestly, depends what you're into. What do you usually like?"
 
-    return "Hmm maybe. Tell me what kind of thing you're looking for."
+    return "Tell me a little more what you're into."
 
 
 def generar_respuesta_ia_local(
@@ -166,23 +138,16 @@ Keep it short, natural, and in character.
     )
 
     texto = limpiar_texto_modelo(response.output_text or "")
-
     if texto:
         return texto
 
     retry_prompt = f"""
-Reply in natural English to this customer message:
+Reply in English to this customer message:
 
 {mensaje_cliente}
 
-Rules:
-- sound like a real woman texting
-- keep it short
-- answer directly
-- no poetic language
-- no "digital world", no "kindred spirit", no weird cute phrases
-- no explanations
-- output only the reply
+Keep it short, natural, feminine, playful, and realistic.
+Only output the reply text.
 """.strip()
 
     response_retry = client.responses.create(
@@ -192,15 +157,10 @@ Rules:
     )
 
     texto_retry = limpiar_texto_modelo(response_retry.output_text or "")
-
     if texto_retry:
         return texto_retry
 
-    fallback = generar_respuesta_fallback(mensaje_cliente)
-    if fallback:
-        return fallback
-
-    raise ValueError("Local AI returned empty or low-quality reply")
+    return generar_respuesta_fallback(mensaje_cliente)
 
 
 def generar_opener_ia_local(
@@ -247,7 +207,7 @@ def generar_opener_ia_local(
     history_block = "\n".join(historial_corto[-6:]) if historial_corto else "No previous chat."
 
     prompt = f"""
-You are writing a single opener for a commercial conversational chatbot.
+You are writing a single opener for a female content creator chatting with a potential customer.
 
 {instruction}
 
@@ -256,7 +216,7 @@ Conversation context:
 """.strip()
 
     system_prompt_opener = """
-You write short natural English openers for a commercial conversational chatbot.
+You write short natural English openers for a female content creator chatting with a potential customer.
 
 Rules:
 - output only 1 opener
@@ -274,24 +234,24 @@ Rules:
     )
 
     texto = limpiar_texto_modelo(response.output_text or "")
+    if texto:
+        return texto
 
-    if not texto:
-        retry_prompt = f"""
+    retry_prompt = f"""
 Write exactly one short English opener.
 Type: {opener_type}
 Tone: warm, feminine, natural.
 Only output the opener text.
 """.strip()
 
-        response_retry = client.responses.create(
-            model=MODELO_LOCAL,
-            instructions=system_prompt_opener,
-            input=retry_prompt
-        )
+    response_retry = client.responses.create(
+        model=MODELO_LOCAL,
+        instructions=system_prompt_opener,
+        input=retry_prompt
+    )
 
-        texto = limpiar_texto_modelo(response_retry.output_text or "")
+    texto_retry = limpiar_texto_modelo(response_retry.output_text or "")
+    if texto_retry:
+        return texto_retry
 
-    if not texto:
-        raise ValueError(f"Local AI returned empty opener for opener_type={opener_type}")
-
-    return texto
+    raise ValueError(f"Local AI returned empty opener for opener_type={opener_type}")

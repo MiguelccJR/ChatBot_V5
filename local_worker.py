@@ -9,7 +9,8 @@ from db import (
     get_pending_opener_requests,
     update_opener_request,
 )
-from local_ai import generar_respuesta_ia_local, generar_opener_ia_local, suena_a_ia_o_poco_humano
+from local_ai import generar_respuesta_ia_local, generar_opener_ia_local
+
 
 
 POLL_SECONDS = 1.5
@@ -42,10 +43,7 @@ def construir_historial_corto(session_id: str, hasta_message_id: int | None = No
         if not content:
             continue
 
-        # No arrastrar respuestas malas/artificiales del assistant
-        if role == "assistant" and suena_a_ia_o_poco_humano(content):
-            continue
-
+  
         historial.append(f"{role}: {content}")
 
     return historial[-limite:]
