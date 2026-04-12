@@ -1,7 +1,7 @@
 ﻿import re
 from openai import OpenAI
 
-MODELO_LOCAL = "qwen/qwen3.5-9b"
+MODELO_LOCAL = "mistralai/mistral-7b-instruct-v0.3"
 
 client = OpenAI(
     base_url="http://127.0.0.1:1234/v1",
@@ -177,7 +177,6 @@ def generar_respuesta_ia_local(
             model=MODELO_LOCAL,
             messages=messages,
             max_tokens=300,
-            extra_body={"thinking": {"type": "disabled"}},
             temperature=0.85,
         )
         texto = limpiar_texto_modelo(extraer_texto_respuesta(response.choices[0]))
@@ -201,7 +200,6 @@ def generar_respuesta_ia_local(
             model=MODELO_LOCAL,
             messages=retry_messages,
             max_tokens=300,
-            extra_body={"thinking": {"type": "disabled"}},
             temperature=0.85,
         )
         texto_retry = limpiar_texto_modelo(extraer_texto_respuesta(response_retry.choices[0]))
@@ -273,7 +271,6 @@ def generar_opener_ia_local(
             model=MODELO_LOCAL,
             messages=messages,
             max_tokens=300,
-            extra_body={"thinking": {"type": "disabled"}},
             temperature=0.9,
         )
         texto = limpiar_texto_modelo(extraer_texto_respuesta(response.choices[0]))
@@ -298,7 +295,6 @@ def generar_opener_ia_local(
             model=MODELO_LOCAL,
             messages=retry_messages,
             max_tokens=300,
-            extra_body={"thinking": {"type": "disabled"}},
             temperature=0.9,
         )
         texto_retry = limpiar_texto_modelo(extraer_texto_respuesta(response_retry.choices[0]))
