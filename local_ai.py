@@ -176,7 +176,8 @@ def generar_respuesta_ia_local(
         response = client.chat.completions.create(
             model=MODELO_LOCAL,
             messages=messages,
-            max_tokens=300,   # enough for thinking + reply
+            max_tokens=300,
+            extra_body={"thinking": {"type": "disabled"}},
             temperature=0.85,
         )
         texto = limpiar_texto_modelo(extraer_texto_respuesta(response.choices[0]))
@@ -200,6 +201,7 @@ def generar_respuesta_ia_local(
             model=MODELO_LOCAL,
             messages=retry_messages,
             max_tokens=300,
+            extra_body={"thinking": {"type": "disabled"}},
             temperature=0.85,
         )
         texto_retry = limpiar_texto_modelo(extraer_texto_respuesta(response_retry.choices[0]))
@@ -270,7 +272,8 @@ def generar_opener_ia_local(
         response = client.chat.completions.create(
             model=MODELO_LOCAL,
             messages=messages,
-            max_tokens=300,   # raised: Qwen needs tokens to think before answering
+            max_tokens=300,
+            extra_body={"thinking": {"type": "disabled"}},
             temperature=0.9,
         )
         texto = limpiar_texto_modelo(extraer_texto_respuesta(response.choices[0]))
@@ -295,6 +298,7 @@ def generar_opener_ia_local(
             model=MODELO_LOCAL,
             messages=retry_messages,
             max_tokens=300,
+            extra_body={"thinking": {"type": "disabled"}},
             temperature=0.9,
         )
         texto_retry = limpiar_texto_modelo(extraer_texto_respuesta(response_retry.choices[0]))
