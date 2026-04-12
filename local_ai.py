@@ -61,13 +61,39 @@ Rules:
 
 
 def quitar_think_tags(texto: str) -> str:
-    """
-    Qwen3 models output <think>...</think> blocks before the real answer.
-    This strips them out completely.
-    """
-    # Remove <think>...</think> blocks (including multiline)
+    """Removes <think>...</think> blocks that Qwen outputs before answering."""
     texto = re.sub(r"<think>.*?</think>", "", texto, flags=re.DOTALL)
     return texto.strip()
+
+
+def extraer_texto_respuesta(choice) -> str:
+    """
+    Qwen3 in LM Studio sometimes puts the reply in reasoning_content
+    and leaves content empty when max_tokens is too low.
+
+    Priority:
+    1. message.content  (normal case)
+    2. message.reasoning_content  (Qwen fallback)
+    3. Empty string
+    """
+    msg = choice.message
+
+    content = (getattr(msg, "content", None) or "").strip()
+    if content:
+        return content
+
+    reasoning = (getattr(msg, "reasoning_content", None) or "").strip()
+    if reasoning:
+        # Try to find the final answer after thinking
+        for sep in ["\n\nFinal answer:", "\n\nAnswer:", "\n\nReply:", "\n\n---"]:
+            if sep in reasoning:
+                return reasoning.split(sep)[-1].strip()
+        # Fall back to the last non-empty paragraph
+        parrafos = [p.strip() for p in reasoning.split("\n\n") if p.strip()]
+        if parrafos:
+            return parrafos[-1]
+
+    return ""
 
 
 def limpiar_texto_modelo(texto: str) -> str:
@@ -80,28 +106,18 @@ def limpiar_texto_modelo(texto: str) -> str:
     if not texto:
         return ""
 
-    texto = texto.strip()
-    texto = texto.strip('"').strip("'").strip()
+    texto = texto.strip().strip('"').strip("'").strip()
 
-    prefijos = [
-        "Reply:",
-        "Response:",
-        "Assistant:",
-        "Bot:",
-        "Message:",
-        "Opener:",
-    ]
+    prefijos = ["Reply:", "Response:", "Assistant:", "Bot:", "Message:", "Opener:"]
     for prefijo in prefijos:
         if texto.startswith(prefijo):
             texto = texto[len(prefijo):].strip()
 
-    # Remove empty lines but keep up to 3 sentences
     lineas = [line.strip() for line in texto.splitlines() if line.strip()]
     if not lineas:
         return ""
 
     texto_final = " ".join(lineas[:3]).strip()
-
     return texto_final[:400].strip()
 
 
@@ -129,19 +145,14 @@ def generar_respuesta_fallback(mensaje_cliente: str) -> str:
 
     if "someone else" in t or "with someone else" in t:
         return "Maybe a couple, but not exactly like me. Why, are you curious?"
-
     if "hello" in t or "hellow" in t or t == "hi":
         return "Heyy, I'm here. Tell me."
-
     if "friend" in t:
         return "Maybe a couple, but everyone does things a little differently. Why do you ask?"
-
     if "price" in t or "how much" in t:
         return "Depends what you're looking for really. What kind of content did you have in mind?"
-
     if "custom" in t:
         return "Yeah, I do customs sometimes. What were you thinking about?"
-
     if "content" in t or "what do you do" in t:
         return "I do a mix honestly, depends what you're into. What do you usually like?"
 
@@ -157,29 +168,24 @@ def generar_respuesta_ia_local(
     historial_corto = historial_corto or []
     intenciones = intenciones or []
 
-    # Build structured message history
     messages_historial = construir_mensajes_historial(historial_corto[-6:])
-
-    # Add current customer message
     messages_historial.append({"role": "user", "content": mensaje_cliente})
-
-    # Full messages array with system prompt first
     messages = [{"role": "system", "content": SYSTEM_PROMPT_BASE}] + messages_historial
 
     try:
         response = client.chat.completions.create(
             model=MODELO_LOCAL,
             messages=messages,
-            max_tokens=120,
+            max_tokens=300,   # enough for thinking + reply
             temperature=0.85,
         )
-        texto = limpiar_texto_modelo(response.choices[0].message.content or "")
+        texto = limpiar_texto_modelo(extraer_texto_respuesta(response.choices[0]))
         if texto:
             return texto
     except Exception as e:
         print(f"[AI ERROR first attempt] {e}")
 
-    # Retry with a simpler prompt
+    # Retry with simpler prompt
     retry_messages = [
         {"role": "system", "content": SYSTEM_PROMPT_BASE},
         {"role": "user", "content": (
@@ -193,10 +199,10 @@ def generar_respuesta_ia_local(
         response_retry = client.chat.completions.create(
             model=MODELO_LOCAL,
             messages=retry_messages,
-            max_tokens=120,
+            max_tokens=300,
             temperature=0.85,
         )
-        texto_retry = limpiar_texto_modelo(response_retry.choices[0].message.content or "")
+        texto_retry = limpiar_texto_modelo(extraer_texto_respuesta(response_retry.choices[0]))
         if texto_retry:
             return texto_retry
     except Exception as e:
@@ -264,10 +270,10 @@ def generar_opener_ia_local(
         response = client.chat.completions.create(
             model=MODELO_LOCAL,
             messages=messages,
-            max_tokens=60,
+            max_tokens=300,   # raised: Qwen needs tokens to think before answering
             temperature=0.9,
         )
-        texto = limpiar_texto_modelo(response.choices[0].message.content or "")
+        texto = limpiar_texto_modelo(extraer_texto_respuesta(response.choices[0]))
         if texto:
             return texto
     except Exception as e:
@@ -288,10 +294,10 @@ def generar_opener_ia_local(
         response_retry = client.chat.completions.create(
             model=MODELO_LOCAL,
             messages=retry_messages,
-            max_tokens=60,
+            max_tokens=300,
             temperature=0.9,
         )
-        texto_retry = limpiar_texto_modelo(response_retry.choices[0].message.content or "")
+        texto_retry = limpiar_texto_modelo(extraer_texto_respuesta(response_retry.choices[0]))
         if texto_retry:
             return texto_retry
     except Exception as e:
