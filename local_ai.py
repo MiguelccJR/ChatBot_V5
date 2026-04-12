@@ -1,23 +1,24 @@
-﻿from openai import OpenAI
- 
+﻿import re
+from openai import OpenAI
+
 MODELO_LOCAL = "qwen/qwen3.5-9b"
- 
+
 client = OpenAI(
     base_url="http://127.0.0.1:1234/v1",
     api_key="lm-studio"
 )
- 
+
 SYSTEM_PROMPT_BASE = """
 You are chatting as a female content creator talking to a potential customer in English.
- 
+
 Your tone is warm, feminine, playful, polite, and natural. You can be flirty and suggestive, but never graphic or overly explicit.
- 
+
 Your job is to:
 - keep the conversation flowing naturally
 - sound human, not robotic
 - be engaging, sweet, and lightly teasing when appropriate
 - guide the customer toward interest in content, custom content, or pricing without sounding pushy
- 
+
 Important rules:
 - never say you are an AI
 - never say you are an assistant
@@ -31,24 +32,24 @@ Important rules:
 - if the user mentions work, being tired, boredom, or relaxing, respond warmly and keep the interaction engaging
 - if the user asks about content, menu, customs, or special videos, reply naturally and show interest without sounding robotic
 - if the user asks something unclear, answer in a soft, natural, conversational way
- 
+
 Style:
 - natural chat style
 - 1 to 3 short sentences
 - sometimes use a light emoji, but not always
 - avoid repetitive openings
 - avoid sounding scripted
- 
+
 Never mention policies, artificial intelligence, virtual words or technical limitations.
- 
+
 Do not use overly dramatic pet names unless the user already uses them first.
 Avoid phrases like "my little helper" or anything that sounds unnatural.
 Sound confident, warm, feminine, playful, and realistic.
 """.strip()
- 
+
 SYSTEM_PROMPT_OPENER = """
 You write short natural English openers for a female content creator chatting with a potential customer.
- 
+
 Rules:
 - output only 1 opener
 - no explanations
@@ -57,15 +58,31 @@ Rules:
 - no quotation marks
 - keep it natural and human
 """.strip()
- 
- 
+
+
+def quitar_think_tags(texto: str) -> str:
+    """
+    Qwen3 models output <think>...</think> blocks before the real answer.
+    This strips them out completely.
+    """
+    # Remove <think>...</think> blocks (including multiline)
+    texto = re.sub(r"<think>.*?</think>", "", texto, flags=re.DOTALL)
+    return texto.strip()
+
+
 def limpiar_texto_modelo(texto: str) -> str:
     if not texto:
         return ""
- 
+
+    # Strip Qwen think blocks first
+    texto = quitar_think_tags(texto)
+
+    if not texto:
+        return ""
+
     texto = texto.strip()
     texto = texto.strip('"').strip("'").strip()
- 
+
     prefijos = [
         "Reply:",
         "Response:",
@@ -77,21 +94,21 @@ def limpiar_texto_modelo(texto: str) -> str:
     for prefijo in prefijos:
         if texto.startswith(prefijo):
             texto = texto[len(prefijo):].strip()
- 
+
     # Remove empty lines but keep up to 3 sentences
     lineas = [line.strip() for line in texto.splitlines() if line.strip()]
     if not lineas:
         return ""
- 
+
     texto_final = " ".join(lineas[:3]).strip()
- 
+
     return texto_final[:400].strip()
- 
- 
+
+
 def construir_mensajes_historial(historial_corto: list[str]) -> list[dict]:
     """
-    Converts the short history list ["user: hello", "assistant: hey"] 
-    into structured messages for the chat completions API.
+    Converts ["user: hello", "assistant: hey"] into structured
+    messages for the chat completions API.
     """
     messages = []
     for linea in historial_corto:
@@ -105,32 +122,32 @@ def construir_mensajes_historial(historial_corto: list[str]) -> list[dict]:
             if content:
                 messages.append({"role": "assistant", "content": content})
     return messages
- 
- 
+
+
 def generar_respuesta_fallback(mensaje_cliente: str) -> str:
     t = (mensaje_cliente or "").lower().strip()
- 
+
     if "someone else" in t or "with someone else" in t:
         return "Maybe a couple, but not exactly like me. Why, are you curious?"
- 
+
     if "hello" in t or "hellow" in t or t == "hi":
         return "Heyy, I'm here. Tell me."
- 
+
     if "friend" in t:
         return "Maybe a couple, but everyone does things a little differently. Why do you ask?"
- 
+
     if "price" in t or "how much" in t:
         return "Depends what you're looking for really. What kind of content did you have in mind?"
- 
+
     if "custom" in t:
         return "Yeah, I do customs sometimes. What were you thinking about?"
- 
+
     if "content" in t or "what do you do" in t:
         return "I do a mix honestly, depends what you're into. What do you usually like?"
- 
+
     return "Tell me a little more what you're into."
- 
- 
+
+
 def generar_respuesta_ia_local(
     mensaje_cliente: str,
     historial_corto: list[str] | None = None,
@@ -139,16 +156,16 @@ def generar_respuesta_ia_local(
 ) -> str:
     historial_corto = historial_corto or []
     intenciones = intenciones or []
- 
+
     # Build structured message history
     messages_historial = construir_mensajes_historial(historial_corto[-6:])
- 
+
     # Add current customer message
     messages_historial.append({"role": "user", "content": mensaje_cliente})
- 
+
     # Full messages array with system prompt first
     messages = [{"role": "system", "content": SYSTEM_PROMPT_BASE}] + messages_historial
- 
+
     try:
         response = client.chat.completions.create(
             model=MODELO_LOCAL,
@@ -161,8 +178,8 @@ def generar_respuesta_ia_local(
             return texto
     except Exception as e:
         print(f"[AI ERROR first attempt] {e}")
- 
-    # Retry with a simpler prompt if first attempt fails or returns empty
+
+    # Retry with a simpler prompt
     retry_messages = [
         {"role": "system", "content": SYSTEM_PROMPT_BASE},
         {"role": "user", "content": (
@@ -171,7 +188,7 @@ def generar_respuesta_ia_local(
             "Only output the reply text."
         )}
     ]
- 
+
     try:
         response_retry = client.chat.completions.create(
             model=MODELO_LOCAL,
@@ -184,17 +201,17 @@ def generar_respuesta_ia_local(
             return texto_retry
     except Exception as e:
         print(f"[AI ERROR retry] {e}")
- 
+
     return generar_respuesta_fallback(mensaje_cliente)
- 
- 
+
+
 def generar_opener_ia_local(
     historial_corto: list[str] | None = None,
     opener_type: str = "soft",
     estado_cliente: str = "chatting"
 ) -> str:
     historial_corto = historial_corto or []
- 
+
     if opener_type == "soft":
         instruction = (
             "Write exactly 1 short opener in English. "
@@ -228,21 +245,21 @@ def generar_opener_ia_local(
             "Tone: warm, feminine, natural. "
             "Return only the final opener text."
         )
- 
+
     history_block = "\n".join(historial_corto[-6:]) if historial_corto else "No previous chat."
- 
+
     prompt_content = (
         f"You are writing a single opener for a female content creator "
         f"chatting with a potential customer.\n\n"
         f"{instruction}\n\n"
         f"Conversation context:\n{history_block}"
     )
- 
+
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT_OPENER},
         {"role": "user", "content": prompt_content}
     ]
- 
+
     try:
         response = client.chat.completions.create(
             model=MODELO_LOCAL,
@@ -255,7 +272,7 @@ def generar_opener_ia_local(
             return texto
     except Exception as e:
         print(f"[OPENER ERROR first attempt] {e}")
- 
+
     # Retry
     retry_messages = [
         {"role": "system", "content": SYSTEM_PROMPT_OPENER},
@@ -266,7 +283,7 @@ def generar_opener_ia_local(
             f"Only output the opener text."
         )}
     ]
- 
+
     try:
         response_retry = client.chat.completions.create(
             model=MODELO_LOCAL,
@@ -279,5 +296,5 @@ def generar_opener_ia_local(
             return texto_retry
     except Exception as e:
         print(f"[OPENER ERROR retry] {e}")
- 
+
     raise ValueError(f"Local AI returned empty opener for opener_type={opener_type}")
