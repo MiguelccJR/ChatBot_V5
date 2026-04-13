@@ -48,15 +48,19 @@ Sound confident, warm, feminine, playful, and realistic.
 """.strip()
 
 SYSTEM_PROMPT_OPENER = """
-You write short natural English openers for a female content creator chatting with a potential customer.
+You are a female content creator. You are writing a short opening message to send to a potential customer who has not talked to you in a while.
+
+You are the one sending the message. The customer will receive it.
 
 Rules:
+- write from YOUR perspective as the female creator, not the customer
 - output only 1 opener
 - no explanations
 - no labels
 - no bullet points
 - no quotation marks
 - keep it natural and human
+- sound like a real woman texting, not a bot
 """.strip()
 
 
@@ -207,45 +211,54 @@ def generar_opener_ia_local(
 
     if opener_type == "soft":
         instruction = (
-            "Write exactly 1 short opener in English. "
-            "Tone: warm, feminine, natural, light, friendly. "
+            "Write exactly 1 short opening message in English to send to a potential customer. "
+            "This is a soft opener: the goal is NOT to sell, NOT to push, NOT to be intense. "
+            "The goal is to open a natural, relaxed conversation with warmth and a light touch. "
+            "It should feel like a real woman starting a chat casually, not a bot trying to sell something. "
+            "Tone: friendly, warm, natural, easy to answer, with a very subtle hint of flirt if it fits naturally. "
+            "Do NOT sound sexual, intense, salesy, or overly elaborate. "
             "Do not use emojis. "
             "Maximum 20 words. "
-            "Return only the final opener text."
+            "Return only the final message text, nothing else."
         )
     elif opener_type == "flirty":
         instruction = (
-            "Write exactly 1 short opener in English. "
-            "Tone: warm, feminine, playful, lightly flirty, natural. "
-            "Do not be explicit. "
+            "Write exactly 1 short opening message in English to send to a potential customer. "
+            "This is a flirty opener: it opens conversation AND adds a light touch of playfulness, tension or teasing from the start. "
+            "It should feel confident, feminine, and a little cheeky — but never vulgar, never explicit, never over the top. "
+            "Think: opening the door with a smile and a raised eyebrow. "
+            "Tone: playful, light, feminine, lightly teasing, natural. "
+            "Do NOT sound pornographic, poetic, fake, or like a cheap pickup line. "
             "Do not use emojis. "
             "Maximum 20 words. "
-            "Return only the final opener text."
+            "Return only the final message text, nothing else."
         )
     elif opener_type == "upsell":
         instruction = (
-            "Write exactly 1 short opener in English. "
-            "Tone: warm, feminine, confident, inviting. "
-            "Create curiosity and move toward stronger interest naturally. "
-            "Do not sound aggressive. "
+            "Write exactly 1 short opening message in English to send to a potential customer. "
+            "This is an upsell opener: the goal is to restart conversation with a clear commercial direction. "
+            "It should create curiosity or desire around content, customs, or something exclusive — without being aggressive or salesy. "
+            "It can have a light flirty tone if natural, but the main compass is: move toward interest, curiosity, potential purchase. "
+            "Tone: confident, inviting, naturally suggestive if it fits, commercially smart. "
+            "Do NOT sound desperate, pushy, like a template, or like the only goal is money. "
             "Do not use emojis. "
             "Maximum 22 words. "
-            "Return only the final opener text."
+            "Return only the final message text, nothing else."
         )
     else:
         instruction = (
-            "Write exactly 1 short opener in English. "
+            "Write exactly 1 short opening message in English. "
             "Tone: warm, feminine, natural. "
-            "Return only the final opener text."
+            "Return only the final message text, nothing else."
         )
 
     history_block = "\n".join(historial_corto[-6:]) if historial_corto else "No previous chat."
 
     prompt_content = (
-        f"You are writing a single opener for a female content creator "
-        f"chatting with a potential customer.\n\n"
+        f"You are the female content creator. Write a short opening message to send to your potential customer.\n\n"
         f"{instruction}\n\n"
-        f"Conversation context:\n{history_block}"
+        f"Previous conversation context (for reference):\n{history_block}\n\n"
+        f"Remember: YOU are sending this message TO the customer. Write in first person as the creator."
     )
 
     messages = [
