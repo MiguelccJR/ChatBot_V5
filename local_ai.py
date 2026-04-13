@@ -1,7 +1,7 @@
 ﻿import re
 from openai import OpenAI
 
-MODELO_LOCAL = "mistralai/mistral-7b-instruct-v0.3"
+MODELO_LOCAL = "qwen/qwen3.5-9b"
 
 client = OpenAI(
     base_url="http://127.0.0.1:1234/v1",
@@ -68,27 +68,21 @@ def quitar_think_tags(texto: str) -> str:
 
 def extraer_texto_respuesta(choice) -> str:
     """
-    Qwen3 in LM Studio sometimes puts the reply in reasoning_content
-    and leaves content empty when max_tokens is too low.
-
-    Priority:
-    1. message.content  (normal case)
-    2. message.reasoning_content  (Qwen fallback)
-    3. Empty string
+    Qwen3 puts the reply in reasoning_content when it runs out of tokens.
+    This tries to extract the actual answer from wherever it ended up.
+    Priority: content -> last paragraph of reasoning_content
     """
     msg = choice.message
 
     content = (getattr(msg, "content", None) or "").strip()
     if content:
-        return content
+        return quitar_think_tags(content)
 
     reasoning = (getattr(msg, "reasoning_content", None) or "").strip()
     if reasoning:
-        # Try to find the final answer after thinking
         for sep in ["\n\nFinal answer:", "\n\nAnswer:", "\n\nReply:", "\n\n---"]:
             if sep in reasoning:
                 return reasoning.split(sep)[-1].strip()
-        # Fall back to the last non-empty paragraph
         parrafos = [p.strip() for p in reasoning.split("\n\n") if p.strip()]
         if parrafos:
             return parrafos[-1]
@@ -100,7 +94,6 @@ def limpiar_texto_modelo(texto: str) -> str:
     if not texto:
         return ""
 
-    # Strip Qwen think blocks first
     texto = quitar_think_tags(texto)
 
     if not texto:
@@ -122,10 +115,6 @@ def limpiar_texto_modelo(texto: str) -> str:
 
 
 def construir_mensajes_historial(historial_corto: list[str]) -> list[dict]:
-    """
-    Converts ["user: hello", "assistant: hey"] into structured
-    messages for the chat completions API.
-    """
     messages = []
     for linea in historial_corto:
         linea = linea.strip()
@@ -176,7 +165,6 @@ def generar_respuesta_ia_local(
         response = client.chat.completions.create(
             model=MODELO_LOCAL,
             messages=messages,
-            max_tokens=300,
             temperature=0.85,
         )
         texto = limpiar_texto_modelo(extraer_texto_respuesta(response.choices[0]))
@@ -199,7 +187,6 @@ def generar_respuesta_ia_local(
         response_retry = client.chat.completions.create(
             model=MODELO_LOCAL,
             messages=retry_messages,
-            max_tokens=300,
             temperature=0.85,
         )
         texto_retry = limpiar_texto_modelo(extraer_texto_respuesta(response_retry.choices[0]))
@@ -270,7 +257,6 @@ def generar_opener_ia_local(
         response = client.chat.completions.create(
             model=MODELO_LOCAL,
             messages=messages,
-            max_tokens=300,
             temperature=0.9,
         )
         texto = limpiar_texto_modelo(extraer_texto_respuesta(response.choices[0]))
@@ -294,7 +280,6 @@ def generar_opener_ia_local(
         response_retry = client.chat.completions.create(
             model=MODELO_LOCAL,
             messages=retry_messages,
-            max_tokens=300,
             temperature=0.9,
         )
         texto_retry = limpiar_texto_modelo(extraer_texto_respuesta(response_retry.choices[0]))
