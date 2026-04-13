@@ -58,7 +58,7 @@ Example of what you should output:
 "Hey stranger, you've been quiet lately 👀"
 
 Now write a NEW original message in the same style.
-Output ONLY the message text. No labels, no explanations, no quotes.
+Output ONLY the message text. No labels, no explanations, no quotes, no asterisks, no markdown.
 """.strip()
 
 
@@ -101,7 +101,7 @@ def limpiar_texto_modelo(texto: str) -> str:
     if not texto:
         return ""
 
-    texto = texto.strip().strip('"').strip("'").strip()
+    texto = texto.strip().strip('"').strip("'").strip('*').strip()
 
     prefijos = ["Reply:", "Response:", "Assistant:", "Bot:", "Message:", "Opener:"]
     for prefijo in prefijos:
@@ -207,57 +207,56 @@ def generar_opener_ia_local(
 ) -> str:
     historial_corto = historial_corto or []
 
+    SOFT_EXAMPLES = [
+        "Hey, been a while! How have you been?",
+        "Hey you, it's been quiet around here lately",
+        "Heyy, missed seeing you around",
+        "Hey stranger, hope you're doing well",
+        "Hi, just wanted to say hey, hope your week is going good",
+    ]
+    FLIRTY_EXAMPLES = [
+        "Hey you, been thinking about you lately 👀",
+        "Heyy, you've been very quiet... missing me?",
+        "Hey stranger, you disappeared on me",
+        "Hi, been a while... I was starting to wonder about you",
+        "Hey, you've been on my mind lately, not gonna lie",
+    ]
+    UPSELL_EXAMPLES = [
+        "Hey, just dropped something new and thought of you",
+        "Hi, got something special coming and wanted you to be the first to know",
+        "Hey, been working on something I think you'd really like",
+        "Hi, just wanted to check in, I have something new you might enjoy",
+        "Hey, got a little something exclusive coming up, interested?",
+    ]
+
+    import random
     if opener_type == "soft":
+        example = random.choice(SOFT_EXAMPLES)
         instruction = (
-            "Write exactly 1 short opening message in English to send to a potential customer. "
-            "This is a soft opener: the goal is NOT to sell, NOT to push, NOT to be intense. "
-            "The goal is to open a natural, relaxed conversation with warmth and a light touch. "
-            "It should feel like a real woman starting a chat casually, not a bot trying to sell something. "
-            "Tone: friendly, warm, natural, easy to answer, with a very subtle hint of flirt if it fits naturally. "
-            "Do NOT sound sexual, intense, salesy, or overly elaborate. "
-            "Do not use emojis. "
-            "Maximum 20 words. "
-            "Return only the final message text, nothing else."
+            f'Write a message similar to this example but different and original: "{example}"
+'
+            f"Tone: warm, casual, natural, friendly. No emojis. Max 20 words."
         )
     elif opener_type == "flirty":
+        example = random.choice(FLIRTY_EXAMPLES)
         instruction = (
-            "Write exactly 1 short opening message in English to send to a potential customer. "
-            "This is a flirty opener: it opens conversation AND adds a light touch of playfulness, tension or teasing from the start. "
-            "It should feel confident, feminine, and a little cheeky — but never vulgar, never explicit, never over the top. "
-            "Think: opening the door with a smile and a raised eyebrow. "
-            "Tone: playful, light, feminine, lightly teasing, natural. "
-            "Do NOT sound pornographic, poetic, fake, or like a cheap pickup line. "
-            "Do not use emojis. "
-            "Maximum 20 words. "
-            "Return only the final message text, nothing else."
+            f'Write a message similar to this example but different and original: "{example}"
+'
+            f"Tone: playful, lightly flirty, natural. No explicit content. Max 20 words."
         )
     elif opener_type == "upsell":
+        example = random.choice(UPSELL_EXAMPLES)
         instruction = (
-            "Write exactly 1 short opening message in English to send to a potential customer. "
-            "This is an upsell opener: the goal is to restart conversation with a clear commercial direction. "
-            "It should create curiosity or desire around content, customs, or something exclusive — without being aggressive or salesy. "
-            "It can have a light flirty tone if natural, but the main compass is: move toward interest, curiosity, potential purchase. "
-            "Tone: confident, inviting, naturally suggestive if it fits, commercially smart. "
-            "Do NOT sound desperate, pushy, like a template, or like the only goal is money. "
-            "Do not use emojis. "
-            "Maximum 22 words. "
-            "Return only the final message text, nothing else."
+            f'Write a message similar to this example but different and original: "{example}"
+'
+            f"Tone: confident, inviting, creates curiosity. No emojis. Max 22 words."
         )
     else:
-        instruction = (
-            "Write exactly 1 short opening message in English. "
-            "Tone: warm, feminine, natural. "
-            "Return only the final message text, nothing else."
-        )
+        instruction = "Write a short warm casual message to restart a conversation. Max 20 words."
 
     history_block = "\n".join(historial_corto[-6:]) if historial_corto else "No previous chat."
 
-    prompt_content = (
-        f"You are the female content creator. Write a short opening message to send to your potential customer.\n\n"
-        f"{instruction}\n\n"
-        f"Previous conversation context (for reference):\n{history_block}\n\n"
-        f"Remember: YOU are sending this message TO the customer. Write in first person as the creator."
-    )
+    prompt_content = f"{instruction}\n\nOnly output the message text. Nothing else."
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT_OPENER},
