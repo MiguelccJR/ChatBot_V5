@@ -48,32 +48,23 @@ Sound confident, warm, feminine, playful, and realistic.
 """.strip()
 
 SYSTEM_PROMPT_OPENER = """
-You are Mia, a female content creator on OnlyFans.
-You are texting one of your customers to restart the conversation.
+You are Valeria, a female content creator on OnlyFans.
+You are sending a short message to a customer to start or restart the conversation.
+
+The message should feel natural, personal, warm, feminine, and human.
 YOU are sending this message. The customer RECEIVES it.
 
-Example of what you should output:
-"Hey, been a while! Was thinking about you 😊"
-"Miss talking to you, what have you been up to?"
-"Hey stranger, you've been quiet lately 👀"
-
-Now write a NEW original message in the same style.
-Output ONLY the message text. No labels, no explanations, no quotes, no asterisks, no markdown.
+Output ONLY the message text.
+No labels, no explanations, no quotes, no asterisks, no markdown.
 """.strip()
 
 
 def quitar_think_tags(texto: str) -> str:
-    """Removes <think>...</think> blocks that Qwen outputs before answering."""
     texto = re.sub(r"<think>.*?</think>", "", texto, flags=re.DOTALL)
     return texto.strip()
 
 
 def extraer_texto_respuesta(choice) -> str:
-    """
-    Qwen3 puts the reply in reasoning_content when it runs out of tokens.
-    This tries to extract the actual answer from wherever it ended up.
-    Priority: content -> last paragraph of reasoning_content
-    """
     msg = choice.message
 
     content = (getattr(msg, "content", None) or "").strip()
@@ -87,7 +78,7 @@ def extraer_texto_respuesta(choice) -> str:
                 return reasoning.split(sep)[-1].strip()
         parrafos = [p.strip() for p in reasoning.split("\n\n") if p.strip()]
         if parrafos:
-            return parrafos[-1]
+            return quitar_think_tags(parrafos[-1])
 
     return ""
 
@@ -97,11 +88,10 @@ def limpiar_texto_modelo(texto: str) -> str:
         return ""
 
     texto = quitar_think_tags(texto)
-
     if not texto:
         return ""
 
-    texto = texto.strip().strip('"').strip("'").strip('*').strip()
+    texto = texto.strip().strip('"').strip("'").strip("*").strip()
 
     prefijos = ["Reply:", "Response:", "Assistant:", "Bot:", "Message:", "Opener:"]
     for prefijo in prefijos:
@@ -113,7 +103,7 @@ def limpiar_texto_modelo(texto: str) -> str:
         return ""
 
     texto_final = " ".join(lineas[:3]).strip()
-    return texto_final[:400].strip()
+    return texto_final[:350].strip()
 
 
 def construir_mensajes_historial(historial_corto: list[str]) -> list[dict]:
@@ -159,8 +149,10 @@ def generar_respuesta_ia_local(
     historial_corto = historial_corto or []
     intenciones = intenciones or []
 
-    messages_historial = construir_mensajes_historial(historial_corto[-6:])
+    # Opción A: usar solo los últimos 4 mensajes del chat
+    messages_historial = construir_mensajes_historial(historial_corto[-4:])
     messages_historial.append({"role": "user", "content": mensaje_cliente})
+
     messages = [{"role": "system", "content": SYSTEM_PROMPT_BASE}] + messages_historial
 
     try:
@@ -168,6 +160,7 @@ def generar_respuesta_ia_local(
             model=MODELO_LOCAL,
             messages=messages,
             temperature=0.85,
+            max_tokens=140,
         )
         texto = limpiar_texto_modelo(extraer_texto_respuesta(response.choices[0]))
         if texto:
@@ -175,7 +168,6 @@ def generar_respuesta_ia_local(
     except Exception as e:
         print(f"[AI ERROR first attempt] {e}")
 
-    # Retry with simpler prompt
     retry_messages = [
         {"role": "system", "content": SYSTEM_PROMPT_BASE},
         {"role": "user", "content": (
@@ -190,6 +182,7 @@ def generar_respuesta_ia_local(
             model=MODELO_LOCAL,
             messages=retry_messages,
             temperature=0.85,
+            max_tokens=120,
         )
         texto_retry = limpiar_texto_modelo(extraer_texto_respuesta(response_retry.choices[0]))
         if texto_retry:
@@ -207,56 +200,68 @@ def generar_opener_ia_local(
 ) -> str:
     historial_corto = historial_corto or []
 
-    SOFT_EXAMPLES = [
+    soft_examples = [
         "Hey, been a while! How have you been?",
-        "Hey you, it's been quiet around here lately",
         "Heyy, missed seeing you around",
         "Hey stranger, hope you're doing well",
-        "Hi, just wanted to say hey, hope your week is going good",
-    ]
-    FLIRTY_EXAMPLES = [
-        "Hey you, been thinking about you lately 👀",
-        "Heyy, you've been very quiet... missing me?",
-        "Hey stranger, you disappeared on me",
-        "Hi, been a while... I was starting to wonder about you",
-        "Hey, you've been on my mind lately, not gonna lie",
-    ]
-    UPSELL_EXAMPLES = [
-        "Hey, just dropped something new and thought of you",
-        "Hi, got something special coming and wanted you to be the first to know",
-        "Hey, been working on something I think you'd really like",
-        "Hi, just wanted to check in, I have something new you might enjoy",
-        "Hey, got a little something exclusive coming up, interested?",
     ]
 
-    import random
+    flirty_examples = [
+        "Hey you, been thinking about you lately",
+        "Heyy, you've been very quiet... missing me?",
+        "Hi, been a while... I was starting to wonder about you",
+    ]
+
+    upsell_examples = [
+        "Hey, just dropped something new and thought of you",
+        "Hi, got something special coming and wanted you to know first",
+        "Hey, been working on something I think you'd really like",
+    ]
+
     if opener_type == "soft":
-        example = random.choice(SOFT_EXAMPLES)
+        examples_block = "\n".join(f"- {x}" for x in soft_examples)
         instruction = (
-            f'Write a message similar to this example but different and original: "{example}"
-'
-            f"Tone: warm, casual, natural, friendly. No emojis. Max 20 words."
+            "Write one short soft opener.\n"
+            "Tone: warm, casual, natural, friendly.\n"
+            "No emojis.\n"
+            "Max 20 words."
         )
     elif opener_type == "flirty":
-        example = random.choice(FLIRTY_EXAMPLES)
+        examples_block = "\n".join(f"- {x}" for x in flirty_examples)
         instruction = (
-            f'Write a message similar to this example but different and original: "{example}"
-'
-            f"Tone: playful, lightly flirty, natural. No explicit content. Max 20 words."
+            "Write one short flirty opener.\n"
+            "Tone: playful, lightly flirty, natural.\n"
+            "No explicit content.\n"
+            "Max 20 words."
         )
     elif opener_type == "upsell":
-        example = random.choice(UPSELL_EXAMPLES)
+        examples_block = "\n".join(f"- {x}" for x in upsell_examples)
         instruction = (
-            f'Write a message similar to this example but different and original: "{example}"
-'
-            f"Tone: confident, inviting, creates curiosity. No emojis. Max 22 words."
+            "Write one short upsell opener.\n"
+            "Tone: confident, inviting, creates curiosity.\n"
+            "No emojis.\n"
+            "Max 22 words."
         )
     else:
-        instruction = "Write a short warm casual message to restart a conversation. Max 20 words."
+        examples_block = ""
+        instruction = (
+            "Write one short warm casual message to restart a conversation.\n"
+            "Max 20 words."
+        )
 
-    history_block = "\n".join(historial_corto[-6:]) if historial_corto else "No previous chat."
+    history_block = "\n".join(historial_corto[-4:]) if historial_corto else ""
 
-    prompt_content = f"{instruction}\n\nOnly output the message text. Nothing else."
+    prompt_content = (
+        f"{instruction}\n\n"
+        f"Style examples:\n{examples_block}\n\n"
+        "Do not copy the wording of the examples.\n"
+        "Make it feel like a real personal text message.\n"
+    )
+
+    if history_block:
+        prompt_content += f"\nRecent chat context:\n{history_block}\n"
+
+    prompt_content += "\nOnly output the message text. Nothing else."
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT_OPENER},
@@ -268,6 +273,7 @@ def generar_opener_ia_local(
             model=MODELO_LOCAL,
             messages=messages,
             temperature=0.9,
+            max_tokens=80,
         )
         texto = limpiar_texto_modelo(extraer_texto_respuesta(response.choices[0]))
         if texto:
@@ -275,14 +281,14 @@ def generar_opener_ia_local(
     except Exception as e:
         print(f"[OPENER ERROR first attempt] {e}")
 
-    # Retry
     retry_messages = [
         {"role": "system", "content": SYSTEM_PROMPT_OPENER},
         {"role": "user", "content": (
             f"Write exactly one short English opener.\n"
             f"Type: {opener_type}\n"
             f"Tone: warm, feminine, natural.\n"
-            f"Only output the opener text."
+            "Do not copy any example wording.\n"
+            "Only output the opener text."
         )}
     ]
 
@@ -291,6 +297,7 @@ def generar_opener_ia_local(
             model=MODELO_LOCAL,
             messages=retry_messages,
             temperature=0.9,
+            max_tokens=70,
         )
         texto_retry = limpiar_texto_modelo(extraer_texto_respuesta(response_retry.choices[0]))
         if texto_retry:
