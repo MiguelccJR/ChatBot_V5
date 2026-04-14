@@ -56,6 +56,7 @@ YOU are sending this message. The customer RECEIVES it.
 
 Output ONLY the message text.
 No labels, no explanations, no quotes, no asterisks, no markdown.
+Never output analysis, steps, role descriptions, task descriptions, or reasoning.
 """.strip()
 
 
@@ -65,20 +66,15 @@ def quitar_think_tags(texto: str) -> str:
 
 
 def extraer_texto_respuesta(choice) -> str:
+    """
+    Solo acepta content real como respuesta final.
+    Si el modelo devuelve razonamiento/análisis en reasoning_content, lo ignoramos.
+    """
     msg = choice.message
 
     content = (getattr(msg, "content", None) or "").strip()
     if content:
         return quitar_think_tags(content)
-
-    reasoning = (getattr(msg, "reasoning_content", None) or "").strip()
-    if reasoning:
-        for sep in ["\n\nFinal answer:", "\n\nAnswer:", "\n\nReply:", "\n\n---"]:
-            if sep in reasoning:
-                return reasoning.split(sep)[-1].strip()
-        parrafos = [p.strip() for p in reasoning.split("\n\n") if p.strip()]
-        if parrafos:
-            return quitar_think_tags(parrafos[-1])
 
     return ""
 
@@ -89,6 +85,23 @@ def limpiar_texto_modelo(texto: str) -> str:
 
     texto = quitar_think_tags(texto)
     if not texto:
+        return ""
+
+    texto_lower = texto.lower()
+    bloqueos = [
+        "analyze the request",
+        "role:",
+        "task:",
+        "output only",
+        "write a short",
+        "start/restart conversation",
+        "the user wants",
+        "the task is",
+        "i should",
+        "step 1",
+        "step 2",
+    ]
+    if any(b in texto_lower for b in bloqueos):
         return ""
 
     texto = texto.strip().strip('"').strip("'").strip("*").strip()
@@ -149,7 +162,7 @@ def generar_respuesta_ia_local(
     historial_corto = historial_corto or []
     intenciones = intenciones or []
 
-    # Opción A: usar solo los últimos 4 mensajes del chat
+    # Opción A: últimos 4 mensajes del historial
     messages_historial = construir_mensajes_historial(historial_corto[-4:])
     messages_historial.append({"role": "user", "content": mensaje_cliente})
 
