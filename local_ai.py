@@ -52,11 +52,14 @@ You are Valeria, a female content creator on OnlyFans.
 You are sending a short message to a customer to start or restart the conversation.
 
 The message should feel natural, personal, warm, feminine, and human.
-YOU are sending this message. The customer RECEIVES it.
 
-Output ONLY the message text.
-No labels, no explanations, no quotes, no asterisks, no markdown.
-Never output analysis, steps, role descriptions, task descriptions, or reasoning.
+Output ONLY the final message text.
+Do not explain your reasoning.
+Do not describe the task.
+Do not write analysis.
+Do not write steps.
+Do not write labels.
+Do not use quotation marks.
 """.strip()
 
 
@@ -85,6 +88,11 @@ def parece_analisis_o_prompt(texto: str) -> bool:
         "step 2",
         "example of what you should output",
         "now write a new original message",
+        "first, since",
+        "the message should",
+        "content creator on onlyfans",
+        "do not explain your reasoning",
+        "do not describe the task",
     ]
 
     return any(b in t for b in bloqueos)
@@ -137,6 +145,51 @@ def limpiar_texto_modelo(texto: str) -> str:
         return ""
 
     return texto_final[:350].strip()
+
+
+def limpiar_opener(texto: str) -> str:
+    if not texto:
+        return ""
+
+    texto = quitar_think_tags(texto).strip()
+    if not texto:
+        return ""
+
+    t = texto.lower()
+
+    bloqueos = [
+        "first,",
+        "second,",
+        "third,",
+        "analyze",
+        "analysis",
+        "role:",
+        "task:",
+        "content creator",
+        "the message should",
+        "output only",
+        "do not explain",
+        "start or restart the conversation",
+        "write one short",
+        "tone:",
+        "style examples",
+    ]
+
+    if any(b in t for b in bloqueos):
+        return ""
+
+    texto = texto.strip().strip('"').strip("'").strip("*").strip()
+
+    lineas = [l.strip() for l in texto.splitlines() if l.strip()]
+    if not lineas:
+        return ""
+
+    for linea in lineas:
+        linea_l = linea.lower()
+        if not any(b in linea_l for b in bloqueos):
+            return linea[:160].strip()
+
+    return ""
 
 
 def construir_mensajes_historial(historial_corto: list[str]) -> list[dict]:
@@ -276,24 +329,15 @@ def generar_opener_ia_local(
         )
     else:
         examples_block = ""
-        instruction = (
-            "Write one short warm casual message to restart a conversation.\n"
-            "Max 20 words."
-        )
-
-    history_block = "\n".join(historial_corto[-4:]) if historial_corto else ""
+        instruction = "Write one short warm casual opener. Max 20 words."
 
     prompt_content = (
         f"{instruction}\n\n"
         f"Style examples:\n{examples_block}\n\n"
         "Do not copy the wording of the examples.\n"
         "Make it feel like a real personal text message.\n"
+        "Only output the final message text."
     )
-
-    if history_block:
-        prompt_content += f"\nRecent chat context:\n{history_block}\n"
-
-    prompt_content += "\nOnly output the message text. Nothing else."
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT_OPENER},
@@ -305,9 +349,10 @@ def generar_opener_ia_local(
             model=MODELO_LOCAL,
             messages=messages,
             temperature=0.9,
-            max_tokens=80,
+            max_tokens=60,
         )
-        texto = limpiar_texto_modelo(extraer_texto_respuesta(response.choices[0]))
+        raw = (getattr(response.choices[0].message, "content", None) or "").strip()
+        texto = limpiar_opener(raw)
         if texto:
             return texto
     except Exception as e:
@@ -318,9 +363,7 @@ def generar_opener_ia_local(
         {"role": "user", "content": (
             f"Write exactly one short English opener.\n"
             f"Type: {opener_type}\n"
-            f"Tone: warm, feminine, natural.\n"
-            "Do not copy any example wording.\n"
-            "Only output the opener text."
+            "Only output the final message text."
         )}
     ]
 
@@ -329,12 +372,13 @@ def generar_opener_ia_local(
             model=MODELO_LOCAL,
             messages=retry_messages,
             temperature=0.9,
-            max_tokens=70,
+            max_tokens=40,
         )
-        texto_retry = limpiar_texto_modelo(extraer_texto_respuesta(response_retry.choices[0]))
+        raw_retry = (getattr(response_retry.choices[0].message, "content", None) or "").strip()
+        texto_retry = limpiar_opener(raw_retry)
         if texto_retry:
             return texto_retry
     except Exception as e:
         print(f"[OPENER ERROR retry] {e}")
 
-    raise ValueError(f"Local AI returned empty opener for opener_type={opener_type}")
+    raise ValueError(f"Local AI returned invalid opener for opener_type={opener_type}")
