@@ -245,7 +245,6 @@ def generar_respuesta_ia_local(
             model=MODELO_LOCAL,
             messages=messages,
             temperature=0.85,
-            max_tokens=140,
         )
         texto = limpiar_texto_modelo(extraer_texto_respuesta(response.choices[0]))
         if texto:
@@ -267,7 +266,6 @@ def generar_respuesta_ia_local(
             model=MODELO_LOCAL,
             messages=retry_messages,
             temperature=0.85,
-            max_tokens=120,
         )
         texto_retry = limpiar_texto_modelo(extraer_texto_respuesta(response_retry.choices[0]))
         if texto_retry:
@@ -349,7 +347,6 @@ def generar_opener_ia_local(
             model=MODELO_LOCAL,
             messages=messages,
             temperature=0.9,
-            max_tokens=60,
         )
         raw = (getattr(response.choices[0].message, "content", None) or "").strip()
         texto = limpiar_opener(raw)
@@ -372,7 +369,6 @@ def generar_opener_ia_local(
             model=MODELO_LOCAL,
             messages=retry_messages,
             temperature=0.9,
-            max_tokens=40,
         )
         raw_retry = (getattr(response_retry.choices[0].message, "content", None) or "").strip()
         texto_retry = limpiar_opener(raw_retry)
