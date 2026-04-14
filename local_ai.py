@@ -65,29 +65,12 @@ def quitar_think_tags(texto: str) -> str:
     return texto.strip()
 
 
-def extraer_texto_respuesta(choice) -> str:
-    """
-    Solo acepta content real como respuesta final.
-    Si el modelo devuelve razonamiento/análisis en reasoning_content, lo ignoramos.
-    """
-    msg = choice.message
-
-    content = (getattr(msg, "content", None) or "").strip()
-    if content:
-        return quitar_think_tags(content)
-
-    return ""
-
-
-def limpiar_texto_modelo(texto: str) -> str:
+def parece_analisis_o_prompt(texto: str) -> bool:
     if not texto:
-        return ""
+        return True
 
-    texto = quitar_think_tags(texto)
-    if not texto:
-        return ""
+    t = texto.lower().strip()
 
-    texto_lower = texto.lower()
     bloqueos = [
         "analyze the request",
         "role:",
@@ -100,8 +83,41 @@ def limpiar_texto_modelo(texto: str) -> str:
         "i should",
         "step 1",
         "step 2",
+        "example of what you should output",
+        "now write a new original message",
     ]
-    if any(b in texto_lower for b in bloqueos):
+
+    return any(b in t for b in bloqueos)
+
+
+def extraer_texto_respuesta(choice) -> str:
+    msg = choice.message
+
+    content = (getattr(msg, "content", None) or "").strip()
+    if content:
+        return quitar_think_tags(content)
+
+    reasoning = (getattr(msg, "reasoning_content", None) or "").strip()
+    if reasoning:
+        reasoning = quitar_think_tags(reasoning)
+        parrafos = [p.strip() for p in reasoning.split("\n\n") if p.strip()]
+        if parrafos:
+            candidato = parrafos[-1].strip()
+            if not parece_analisis_o_prompt(candidato):
+                return candidato
+
+    return ""
+
+
+def limpiar_texto_modelo(texto: str) -> str:
+    if not texto:
+        return ""
+
+    texto = quitar_think_tags(texto)
+    if not texto:
+        return ""
+
+    if parece_analisis_o_prompt(texto):
         return ""
 
     texto = texto.strip().strip('"').strip("'").strip("*").strip()
@@ -116,6 +132,10 @@ def limpiar_texto_modelo(texto: str) -> str:
         return ""
 
     texto_final = " ".join(lineas[:3]).strip()
+
+    if parece_analisis_o_prompt(texto_final):
+        return ""
+
     return texto_final[:350].strip()
 
 
@@ -162,7 +182,6 @@ def generar_respuesta_ia_local(
     historial_corto = historial_corto or []
     intenciones = intenciones or []
 
-    # Opción A: últimos 4 mensajes del historial
     messages_historial = construir_mensajes_historial(historial_corto[-4:])
     messages_historial.append({"role": "user", "content": mensaje_cliente})
 
