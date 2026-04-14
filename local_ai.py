@@ -306,7 +306,7 @@ def generar_opener_ia_local(
         instruction = (
             "Write one short soft opener.\n"
             "Tone: warm, casual, natural, friendly.\n"
-            "No emojis.\n"
+            "No emojis unless they feel very natural.\n"
             "Max 20 words."
         )
     elif opener_type == "flirty":
@@ -315,6 +315,7 @@ def generar_opener_ia_local(
             "Write one short flirty opener.\n"
             "Tone: playful, lightly flirty, natural.\n"
             "No explicit content.\n"
+            "You may use one light emoji if it feels natural. \n"
             "Max 20 words."
         )
     elif opener_type == "upsell":
@@ -322,7 +323,8 @@ def generar_opener_ia_local(
         instruction = (
             "Write one short upsell opener.\n"
             "Tone: confident, inviting, creates curiosity.\n"
-            "No emojis.\n"
+            "No explicit content.\n"
+            "Use no emoji or at most one, only if it feels natural.\n"
             "Max 22 words."
         )
     else:
