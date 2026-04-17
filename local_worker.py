@@ -9,9 +9,11 @@ from db import (
     get_pending_opener_requests,
     update_opener_request,
 )
-from local_ai import generar_respuesta_ia_local, generar_opener_ia_local
-
-
+from local_ai import (
+    generar_respuesta_ia_local,
+    generar_opener_ia_local,
+    detectar_intencion_ia_local,
+)
 
 POLL_SECONDS = 1.5
 BURST_WINDOW_SECONDS = 12
@@ -43,20 +45,12 @@ def construir_historial_corto(session_id: str, hasta_message_id: int | None = No
         if not content:
             continue
 
-  
         historial.append(f"{role}: {content}")
 
     return historial[-limite:]
 
 
 def agrupar_mensajes(lista_pendientes):
-    """
-    Agrupa mensajes del mismo chat enviados en ráfaga.
-    Solo agrupa mensajes consecutivos en la cola:
-    - mismo session_id
-    - dentro de una ventana corta de tiempo
-    - máximo MAX_GROUP_MESSAGES
-    """
     grupos = []
     i = 0
 
@@ -129,12 +123,26 @@ def procesar_mensaje_o_grupo(grupo):
         print(f"[DEBUG] Input for AI: {repr(contenido_para_ia)}")
         print(f"[DEBUG] History used: {historial_corto}")
 
+        deteccion = detectar_intencion_ia_local(
+            mensaje_cliente=contenido_para_ia,
+            historial_corto=historial_corto,
+        )
+
+        intent_principal = deteccion.get("primary_intent", "normal_chat")
+        confianza = deteccion.get("confidence", 0.0)
+        handoff_recommended = deteccion.get("handoff_recommended", False)
+        handoff_reason = deteccion.get("handoff_reason", "")
+
+        print(f"[DEBUG] Intent detected: {intent_principal} | confidence={confianza}")
+        print(f"[DEBUG] Handoff suggested: {handoff_recommended} | reason={handoff_reason}")
+
         respuesta = generar_respuesta_ia_local(
             mensaje_cliente=contenido_para_ia,
             historial_corto=historial_corto,
-            intenciones=[],
+            intenciones=[intent_principal],
             estado_cliente="chatting"
-)
+        )
+
         print(f"[DEBUG] Raw final reply: {repr(respuesta)}")
 
         if not respuesta or not respuesta.strip():
@@ -149,8 +157,16 @@ def procesar_mensaje_o_grupo(grupo):
             source="local_ai",
             reply_to_message_id=last_message_id,
             idioma="en",
-            categorias_detectadas=[],
-            categorias_respondibles=[]
+            categorias_detectadas=[{
+                "categoria": intent_principal,
+                "confianza": confianza,
+                "handoff_recommended": handoff_recommended,
+                "handoff_reason": handoff_reason,
+            }],
+            categorias_respondibles=[{
+                "categoria": intent_principal,
+                "confianza": confianza,
+            }]
         )
 
         for msg in grupo:
