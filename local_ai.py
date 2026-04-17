@@ -199,20 +199,27 @@ def limpiar_texto_modelo(texto: str) -> str:
         if texto.startswith(prefijo):
             texto = texto[len(prefijo):].strip()
 
+    # primero intentamos por párrafos, no por líneas
+    parrafos = [p.strip() for p in texto.split("\n\n") if p.strip()]
+    if parrafos:
+        candidato = limpiar_prefijo_meta(parrafos[0]).strip().strip('"').strip("'").strip("*").strip()
+        if candidato and not parece_analisis_o_prompt(candidato):
+            return candidato[:350].strip()
+
+    # si no hay párrafos claros, nos quedamos con la primera línea útil
     lineas = [line.strip() for line in texto.splitlines() if line.strip()]
     if not lineas:
         return ""
 
-    texto_final = " ".join(lineas[:3]).strip()
-    texto_final = limpiar_prefijo_meta(texto_final)
+    for linea in lineas:
+        linea = limpiar_prefijo_meta(linea).strip().strip('"').strip("'").strip("*").strip()
+        if not linea:
+            continue
+        if parece_analisis_o_prompt(linea):
+            continue
+        return linea[:350].strip()
 
-    if not texto_final:
-        return ""
-
-    if parece_analisis_o_prompt(texto_final):
-        return ""
-
-    return texto_final[:350].strip()
+    return ""
 
 
 def limpiar_opener(texto: str) -> str:
