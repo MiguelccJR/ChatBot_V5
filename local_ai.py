@@ -236,6 +236,10 @@ def generar_respuesta_ia_local(
     intenciones = intenciones or []
 
     messages_historial = construir_mensajes_historial(historial_corto[-4:])
+
+    while messages_historial and messages_historial[0]["role"] != "user":
+          messages_historial.pop(0)
+
     messages_historial.append({"role": "user", "content": mensaje_cliente})
 
     messages = [{"role": "system", "content": SYSTEM_PROMPT_BASE}] + messages_historial
