@@ -68,6 +68,41 @@ def quitar_think_tags(texto: str) -> str:
     return texto.strip()
 
 
+def limpiar_prefijo_meta(texto: str) -> str:
+    if not texto:
+        return ""
+
+    texto = texto.strip()
+
+    patrones_meta_inicio = [
+        r"^wait[,!\.\s]+let'?s try (one more time|again)[\.\!\*\s:,-]*",
+        r"^let me try again[\.\!\*\s:,-]*",
+        r"^let'?s try again[\.\!\*\s:,-]*",
+        r"^let'?s try one more[\.\!\*\s:,-]*",
+        r"^one more try[\.\!\*\s:,-]*",
+        r"^wait[,!\.\s]+",
+        r"^okay[,!\.\s]+let'?s try again[\.\!\*\s:,-]*",
+        r"^alright[,!\.\s]+let'?s try again[\.\!\*\s:,-]*",
+        r"^hmm[,!\.\s]+let'?s try again[\.\!\*\s:,-]*",
+    ]
+
+    for patron in patrones_meta_inicio:
+        texto_nuevo = re.sub(patron, "", texto, flags=re.IGNORECASE)
+        if texto_nuevo != texto:
+            texto = texto_nuevo.strip()
+            break
+
+    texto = texto.strip()
+
+    if texto.startswith('"') and texto.count('"') >= 2:
+        partes = texto.split('"')
+        candidatos = [p.strip() for p in partes if p.strip()]
+        if candidatos:
+            return candidatos[0]
+
+    return texto
+
+
 def parece_analisis_o_prompt(texto: str) -> bool:
     if not texto:
         return True
@@ -122,6 +157,8 @@ def limpiar_texto_modelo(texto: str) -> str:
         return ""
 
     texto = quitar_think_tags(texto)
+    texto = limpiar_prefijo_meta(texto)
+
     if not texto:
         return ""
 
@@ -140,6 +177,10 @@ def limpiar_texto_modelo(texto: str) -> str:
         return ""
 
     texto_final = " ".join(lineas[:3]).strip()
+    texto_final = limpiar_prefijo_meta(texto_final)
+
+    if not texto_final:
+        return ""
 
     if parece_analisis_o_prompt(texto_final):
         return ""
@@ -152,6 +193,8 @@ def limpiar_opener(texto: str) -> str:
         return ""
 
     texto = quitar_think_tags(texto).strip()
+    texto = limpiar_prefijo_meta(texto)
+
     if not texto:
         return ""
 
@@ -185,6 +228,9 @@ def limpiar_opener(texto: str) -> str:
         return ""
 
     for linea in lineas:
+        linea = limpiar_prefijo_meta(linea)
+        if not linea:
+            continue
         linea_l = linea.lower()
         if not any(b in linea_l for b in bloqueos):
             return linea[:160].strip()
@@ -238,7 +284,7 @@ def generar_respuesta_ia_local(
     messages_historial = construir_mensajes_historial(historial_corto[-4:])
 
     while messages_historial and messages_historial[0]["role"] != "user":
-          messages_historial.pop(0)
+        messages_historial.pop(0)
 
     messages_historial.append({"role": "user", "content": mensaje_cliente})
 
@@ -319,7 +365,7 @@ def generar_opener_ia_local(
             "Write one short flirty opener.\n"
             "Tone: playful, lightly flirty, natural.\n"
             "No explicit content.\n"
-            "You may use one light emoji if it feels natural. \n"
+            "You may use one light emoji if it feels natural.\n"
             "Max 20 words."
         )
     elif opener_type == "upsell":
