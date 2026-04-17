@@ -63,12 +63,21 @@ Do not write labels.
 Do not use quotation marks.
 """.strip()
 
+# REPLACE THESE WITH YOUR REAL LINKS
+LINKS_CONFIG = {
+    "instagram": "https://instagram.com/TU_USUARIO_REAL",
+    "telegram": "https://t.me/TU_USUARIO_REAL",
+    "x": "https://x.com/TU_USUARIO_REAL",
+    "tiktok": "https://www.tiktok.com/@TU_USUARIO_REAL",
+    "backup_page": "https://TU_PAGINA_O_LINK_REAL",
+}
+
 DETECTION_PROMPT = """
 You classify the customer's latest message in a sales chat.
 
 Return ONLY valid JSON with this exact shape:
 {
-  "primary_intent": "normal_chat" | "specific_content_request" | "price_interest" | "custom_request" | "high_intent" | "human_handoff",
+  "primary_intent": "normal_chat" | "specific_content_request" | "price_interest" | "custom_request" | "high_intent" | "human_handoff" | "social_link_request",
   "confidence": 0.0,
   "handoff_recommended": false,
   "handoff_reason": ""
@@ -81,6 +90,7 @@ Definitions:
 - custom_request: the customer is asking for a personalized/custom piece of content
 - high_intent: the customer shows strong buying interest or clear desire to move forward
 - human_handoff: the message is sensitive, frustrated, difficult, risky, or clearly better for a human
+- social_link_request: the customer is asking for Instagram, Telegram, X/Twitter, TikTok, another page, another link, socials, or where else to find you
 
 Rules:
 - choose only ONE primary_intent
@@ -199,14 +209,12 @@ def limpiar_texto_modelo(texto: str) -> str:
         if texto.startswith(prefijo):
             texto = texto[len(prefijo):].strip()
 
-    # primero intentamos por párrafos, no por líneas
     parrafos = [p.strip() for p in texto.split("\n\n") if p.strip()]
     if parrafos:
         candidato = limpiar_prefijo_meta(parrafos[0]).strip().strip('"').strip("'").strip("*").strip()
         if candidato and not parece_analisis_o_prompt(candidato):
             return candidato[:350].strip()
 
-    # si no hay párrafos claros, nos quedamos con la primera línea útil
     lineas = [line.strip() for line in texto.splitlines() if line.strip()]
     if not lineas:
         return ""
@@ -308,6 +316,45 @@ def extraer_json_obj(texto: str) -> dict:
     return {}
 
 
+def detectar_red_solicitada(mensaje_cliente: str) -> str | None:
+    t = (mensaje_cliente or "").lower()
+
+    if "instagram" in t or "insta" in t or "ig" in t:
+        return "instagram"
+    if "telegram" in t or "tg" in t:
+        return "telegram"
+    if "twitter" in t or "x.com" in t or re.search(r"\bx\b", t):
+        return "x"
+    if "tiktok" in t or "tik tok" in t:
+        return "tiktok"
+    if "other page" in t or "other site" in t or "other link" in t or "another page" in t:
+        return "backup_page"
+
+    return None
+
+
+def responder_enlace_o_red(mensaje_cliente: str) -> str:
+    red = detectar_red_solicitada(mensaje_cliente)
+
+    if red == "instagram":
+        url = LINKS_CONFIG.get("instagram", "").strip()
+        return f"I do, yeah 😘 Here it is: {url}" if url else "I do have Instagram 😘 Want me to send it to you here?"
+    if red == "telegram":
+        url = LINKS_CONFIG.get("telegram", "").strip()
+        return f"Yeah, here you go babe 😘 {url}" if url else "I do have Telegram 😘 Want me to send it to you here?"
+    if red == "x":
+        url = LINKS_CONFIG.get("x", "").strip()
+        return f"Yes, you can find me here 😘 {url}" if url else "I do have X/Twitter 😘 Want me to send it to you here?"
+    if red == "tiktok":
+        url = LINKS_CONFIG.get("tiktok", "").strip()
+        return f"Yep, here it is 😘 {url}" if url else "I do have TikTok 😘 Want me to send it to you here?"
+    if red == "backup_page":
+        url = LINKS_CONFIG.get("backup_page", "").strip()
+        return f"Yes, here’s the other page 😘 {url}" if url else "I do have another page 😘 Want me to send it to you here?"
+
+    return "I do, yeah 😘 Which one did you want me to send you — Instagram or Telegram?"
+
+
 def detectar_intencion_ia_local(
     mensaje_cliente: str,
     historial_corto: list[str] | None = None,
@@ -353,6 +400,7 @@ def detectar_intencion_ia_local(
             "custom_request",
             "high_intent",
             "human_handoff",
+            "social_link_request",
         }:
             primary_intent = "normal_chat"
 
@@ -411,6 +459,14 @@ The customer is showing strong interest.
 Be a little more confident and engaging.
 Keep the momentum going naturally.
 Do not sound generic or overly sweet.
+""".strip()
+
+    if "social_link_request" in intenciones:
+        return """
+The customer is asking for a social media or external link.
+Do not invent usernames or links.
+If a real link is already provided by the system, use it naturally.
+Keep the reply short, casual, and human.
 """.strip()
 
     return ""

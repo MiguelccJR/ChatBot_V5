@@ -13,6 +13,7 @@ from local_ai import (
     generar_respuesta_ia_local,
     generar_opener_ia_local,
     detectar_intencion_ia_local,
+    responder_enlace_o_red,
 )
 
 POLL_SECONDS = 1.5
@@ -136,12 +137,15 @@ def procesar_mensaje_o_grupo(grupo):
         print(f"[DEBUG] Intent detected: {intent_principal} | confidence={confianza}")
         print(f"[DEBUG] Handoff suggested: {handoff_recommended} | reason={handoff_reason}")
 
-        respuesta = generar_respuesta_ia_local(
-            mensaje_cliente=contenido_para_ia,
-            historial_corto=historial_corto,
-            intenciones=[intent_principal],
-            estado_cliente="chatting"
-        )
+        if intent_principal == "social_link_request":
+            respuesta = responder_enlace_o_red(contenido_para_ia)
+        else:
+            respuesta = generar_respuesta_ia_local(
+                mensaje_cliente=contenido_para_ia,
+                historial_corto=historial_corto,
+                intenciones=[intent_principal],
+                estado_cliente="chatting"
+            )
 
         print(f"[DEBUG] Raw final reply: {repr(respuesta)}")
 
@@ -175,7 +179,7 @@ def procesar_mensaje_o_grupo(grupo):
         if len(grupo) == 1:
             print(f"[OK] Replied to message {first_message_id}")
         else:
-            ids = [m['id'] for m in grupo]
+            ids = [m["id"] for m in grupo]
             print(f"[OK] Replied to grouped messages {ids}")
 
     except Exception as e:
@@ -185,7 +189,7 @@ def procesar_mensaje_o_grupo(grupo):
         if len(grupo) == 1:
             print(f"[ERROR] Message {first_message_id}: {e}")
         else:
-            ids = [m['id'] for m in grupo]
+            ids = [m["id"] for m in grupo]
             print(f"[ERROR] Group {ids}: {e}")
 
 
