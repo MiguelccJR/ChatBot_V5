@@ -13,9 +13,12 @@ def get_supabase():
     url = os.getenv("SUPABASE_URL")
     key = os.getenv("SUPABASE_KEY")
     if not url or not key:
-       url = st.secrets["SUPABASE_URL"]
-       key = st.secrets["SUPABASE_KEY"]
-    return create_client(url,key)
+        try:
+            url = st.secrets["SUPABASE_URL"]
+            key = st.secrets["SUPABASE_KEY"]
+        except Exception:
+            raise ValueError("SUPABASE_URL and SUPABASE_KEY not found in .env or st.secrets")
+    return create_client(url, key)
 
 
 def create_test_session(tester_name: str, platform: str) -> str:

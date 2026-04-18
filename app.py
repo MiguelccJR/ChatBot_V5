@@ -10,6 +10,8 @@ from db import (
     get_chat_messages,
     create_opener_request,
     get_latest_opener_request,
+    get_session_control_state,
+    set_session_control_mode,
 )
 
 st.set_page_config(
@@ -97,11 +99,9 @@ def asegurar_db_session(chat):
 
 def solicitar_opener_ai(chat, opener_type):
     asegurar_db_session(chat)
-
     chat["suggested_opener"] = ""
     chat["suggested_opener_type"] = ""
     chat["pending_opener_type"] = opener_type
-
     create_opener_request(
         session_id=chat["db_session_id"],
         opener_type=opener_type
@@ -109,10 +109,6 @@ def solicitar_opener_ai(chat, opener_type):
 
 
 def procesar_estado_opener(chat):
-    """
-    Lee el opener pendiente del chat activo y actualiza el estado del chat.
-    Devuelve el último opener request o None.
-    """
     if chat["db_session_id"] is None:
         return None
 
@@ -138,7 +134,6 @@ def procesar_estado_opener(chat):
         chat["suggested_opener"] = latest_request["suggestion_text"]
         chat["suggested_opener_type"] = f"opener_{opener_type}"
         chat["pending_opener_type"] = None
-
     elif status == "error":
         chat["pending_opener_type"] = None
 
@@ -158,45 +153,31 @@ def inicializar_estado_app():
     if "chat_activo" not in st.session_state:
         st.session_state.chat_activo = None
 
-    # Backfill missing keys for old chats created before new schema
     for cid, chat in st.session_state.chats.items():
         if "nombre" not in chat:
             chat["nombre"] = cid
-
         if "plataforma" not in chat:
             chat["plataforma"] = "test"
-
-        # Migración simple de nombre viejo
         if chat["plataforma"] == "onlyfans":
             chat["plataforma"] = "webchat"
-
         if "historial" not in chat:
             chat["historial"] = []
-
         if "estado_bot" not in chat:
             chat["estado_bot"] = crear_estado_conversacion()
-
         if "ultimo_resultado" not in chat:
             chat["ultimo_resultado"] = None
-
         if "score" not in chat:
             chat["score"] = 0
-
         if "etiquetas" not in chat:
             chat["etiquetas"] = []
-
         if "turn_counter" not in chat:
             chat["turn_counter"] = 0
-
         if "db_session_id" not in chat:
             chat["db_session_id"] = None
-
         if "suggested_opener" not in chat:
             chat["suggested_opener"] = ""
-
         if "suggested_opener_type" not in chat:
             chat["suggested_opener_type"] = ""
-
         if "pending_opener_type" not in chat:
             chat["pending_opener_type"] = None
 
@@ -399,6 +380,45 @@ if latest_requested_opener:
     hay_opener_pendiente = latest_requested_opener.get("status") in ("pending", "processing")
 
 st.subheader(f"Active chat: {chat_activo['nombre']} [{chat_activo['plataforma']}]")
+
+# ----------------------------
+# Control mode (bot / human)
+# ----------------------------
+session_id_activo = chat_activo.get("db_session_id")
+
+if session_id_activo:
+    try:
+        control_state = get_session_control_state(session_id_activo)
+        control_mode = control_state.get("control_mode", "bot")
+        handoff_reason = control_state.get("handoff_reason", "")
+        handoff_since = control_state.get("handoff_since")
+    except Exception:
+        control_mode = "bot"
+        handoff_reason = ""
+        handoff_since = None
+
+    if control_mode == "human":
+        st.warning(
+            f"🤚 **Human mode active** — the bot is paused for this chat."
+            + (f" Reason: *{handoff_reason}*" if handoff_reason else "")
+            + (f" Since: {handoff_since[:19].replace('T', ' ')}" if handoff_since else "")
+        )
+        if st.button("🤖 Return to bot", use_container_width=True):
+            try:
+                set_session_control_mode(session_id_activo, "bot")
+                st.success("Bot mode restored.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error switching to bot mode: {e}")
+    else:
+        st.success("🤖 **Bot mode** — AI is responding automatically.")
+        if st.button("🤚 Take over (human mode)", use_container_width=True):
+            try:
+                set_session_control_mode(session_id_activo, "human", "Manual takeover")
+                st.info("Human mode activated. Bot is now paused.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error switching to human mode: {e}")
 
 col_refresh1, col_refresh2 = st.columns([1, 4])
 
