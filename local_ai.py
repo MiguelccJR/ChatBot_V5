@@ -361,15 +361,16 @@ def detectar_red_solicitada(mensaje_cliente: str) -> str | None:
     return None
 
 
-def responder_enlace_o_red(mensaje_cliente: str) -> str:
+def responder_enlace_o_red(mensaje_cliente: str, config: dict | None = None) -> str:
     red = detectar_red_solicitada(mensaje_cliente)
 
+    links = config if config else LINKS_CONFIG
     if red == "all":
-        ig = LINKS_CONFIG.get("instagram", "")
-        of = LINKS_CONFIG.get("onlyfans", "")
-        tw = LINKS_CONFIG.get("x", "")
-        tt = LINKS_CONFIG.get("tiktok", "")
-        web = LINKS_CONFIG.get("website", "")
+        ig = links.get("instagram", "") or LINKS_CONFIG.get("instagram", "")
+        of = links.get("onlyfans", "") or LINKS_CONFIG.get("onlyfans", "")
+        tw = links.get("twitter", "") or links.get("x", "") or LINKS_CONFIG.get("x", "")
+        tt = links.get("tiktok", "") or LINKS_CONFIG.get("tiktok", "")
+        web = links.get("website", "") or LINKS_CONFIG.get("website", "")
         partes = []
         if ig:
             partes.append(f"Instagram: {ig}")
@@ -387,19 +388,19 @@ def responder_enlace_o_red(mensaje_cliente: str) -> str:
         return "You can find me on Instagram, OnlyFans, TikTok and Twitter 😘 Want me to send you the links?"
 
     if red == "onlyfans":
-        url = LINKS_CONFIG.get("onlyfans", "").strip()
+        url = (links.get("onlyfans") or LINKS_CONFIG.get("onlyfans", "")).strip()
         return f"Yeah, here you go 😘 {url}" if url else "I do have OnlyFans 😘 Want me to send you the link?"
     if red == "instagram":
-        url = LINKS_CONFIG.get("instagram", "").strip()
+        url = (links.get("instagram") or LINKS_CONFIG.get("instagram", "")).strip()
         return f"I do, yeah 😘 Here it is: {url}" if url else "I do have Instagram 😘 Want me to send it to you here?"
     if red == "x":
-        url = LINKS_CONFIG.get("x", "").strip()
+        url = (links.get("twitter") or links.get("x") or LINKS_CONFIG.get("x", "")).strip()
         return f"Yes, you can find me here 😘 {url}" if url else "I do have X/Twitter 😘 Want me to send it to you here?"
     if red == "tiktok":
-        url = LINKS_CONFIG.get("tiktok", "").strip()
+        url = (links.get("tiktok") or LINKS_CONFIG.get("tiktok", "")).strip()
         return f"Yep, here it is 😘 {url}" if url else "I do have TikTok 😘 Want me to send it to you here?"
     if red == "website":
-        url = LINKS_CONFIG.get("website", "").strip()
+        url = (links.get("website") or LINKS_CONFIG.get("website", "")).strip()
         return f"Yes, here's my page 😘 {url}" if url else "I do have a website 😘 Want me to send you the link?"
 
     return "I do, yeah 😘 Which one did you want — Instagram, OnlyFans, TikTok or Twitter?"
@@ -565,7 +566,8 @@ def generar_respuesta_ia_local(
     mensaje_cliente: str,
     historial_corto: list[str] | None = None,
     intenciones: list[str] | None = None,
-    estado_cliente: str = "chatting"
+    estado_cliente: str = "chatting",
+    precios_texto: str = "",
 ) -> str:
     historial_corto = historial_corto or []
     intenciones = intenciones or []
@@ -579,6 +581,10 @@ def generar_respuesta_ia_local(
 
     extra_instruction = construir_instruccion_contextual(intenciones)
     system_prompt = SYSTEM_PROMPT_BASE
+
+    if precios_texto:
+        system_prompt += f"\n\nKnown prices (use these if asked, do not invent others):\n{precios_texto}"
+
     if extra_instruction:
         system_prompt += "\n\n" + extra_instruction
 

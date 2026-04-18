@@ -10,6 +10,7 @@ from db import (
     update_opener_request,
     get_session_control_state,
     set_session_control_mode,
+    get_bot_config_dict,
 )
 from local_ai import (
     generar_respuesta_ia_local,
@@ -23,11 +24,28 @@ BURST_WINDOW_SECONDS = 12
 MAX_GROUP_MESSAGES = 4
 HISTORY_LIMIT = 7
 
+# Config cache: reload every 60 seconds to avoid hitting Supabase on every message
+_config_cache = {}
+_config_last_loaded = 0
+CONFIG_TTL_SECONDS = 60
+
+
+def get_config_cached() -> dict:
+    global _config_cache, _config_last_loaded
+    now = time.time()
+    if now - _config_last_loaded > CONFIG_TTL_SECONDS:
+        try:
+            _config_cache = get_bot_config_dict()
+            _config_last_loaded = now
+            print("[CONFIG] Reloaded bot config from Supabase")
+        except Exception as e:
+            print(f"[CONFIG ERROR] Could not load bot config: {e}")
+    return _config_cache
+
 
 def parse_dt(value):
     if not value:
         return None
-
     try:
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
     except Exception:
@@ -38,27 +56,19 @@ def session_esta_en_handoff(session_id: str) -> tuple[bool, str]:
     state = get_session_control_state(session_id)
     control_mode = state.get("control_mode", "bot")
     handoff_reason = state.get("handoff_reason", "") or ""
-
     return control_mode == "human", handoff_reason
 
 
 def mover_grupo_a_espera_humana(grupo, reason: str = ""):
     motivo = reason or "Waiting for human reply"
-
     for msg in grupo:
-        update_chat_message_status(
-            msg["id"],
-            "waiting_human",
-            error_text=motivo
-        )
-
+        update_chat_message_status(msg["id"], "waiting_human", error_text=motivo)
     ids = [m["id"] for m in grupo]
     print(f"[HANDOFF] Group {ids} moved to waiting_human | reason={motivo}")
 
 
 def construir_historial_corto(session_id: str, hasta_message_id: int | None = None, limite: int = 6):
     mensajes = get_chat_messages(session_id)
-
     if hasta_message_id is not None:
         mensajes = [m for m in mensajes if int(m.get("id", 0)) < int(hasta_message_id)]
 
@@ -66,10 +76,8 @@ def construir_historial_corto(session_id: str, hasta_message_id: int | None = No
     for m in mensajes:
         role = m.get("role", "user")
         content = (m.get("content") or "").strip()
-
         if not content:
             continue
-
         historial.append(f"{role}: {content}")
 
     return historial[-limite:]
@@ -78,7 +86,6 @@ def construir_historial_corto(session_id: str, hasta_message_id: int | None = No
 def agrupar_mensajes(lista_pendientes):
     grupos = []
     i = 0
-
     while i < len(lista_pendientes):
         actual = lista_pendientes[i]
         grupo = [actual]
@@ -86,19 +93,13 @@ def agrupar_mensajes(lista_pendientes):
         j = i + 1
         while j < len(lista_pendientes) and len(grupo) < MAX_GROUP_MESSAGES:
             candidato = lista_pendientes[j]
-
             if candidato.get("session_id") != actual.get("session_id"):
                 break
-
             t1 = parse_dt(grupo[-1].get("created_at"))
             t2 = parse_dt(candidato.get("created_at"))
-
             if not t1 or not t2:
                 break
-
-            delta = (t2 - t1).total_seconds()
-
-            if delta <= BURST_WINDOW_SECONDS:
+            if (t2 - t1).total_seconds() <= BURST_WINDOW_SECONDS:
                 grupo.append(candidato)
                 j += 1
             else:
@@ -108,6 +109,20 @@ def agrupar_mensajes(lista_pendientes):
         i += len(grupo)
 
     return grupos
+
+
+def construir_precios_texto(config: dict) -> str:
+    """Builds a readable price list from config for the AI system prompt."""
+    lineas = []
+    for key, value in config.items():
+        if key.startswith("price_") or key.startswith("pack_") or key.startswith("video_") or key.startswith("custom_"):
+            if value:
+                desc = key.replace("_", " ").title()
+                lineas.append(f"- {desc}: {value}")
+            else:
+                desc = key.replace("_", " ").title()
+                lineas.append(f"- {desc}: price on request (escalate to human)")
+    return "\n".join(lineas) if lineas else ""
 
 
 def procesar_mensaje_o_grupo(grupo):
@@ -128,6 +143,10 @@ def procesar_mensaje_o_grupo(grupo):
         update_chat_message_status(msg["id"], "processing")
 
     try:
+        config = get_config_cached()
+        precios_texto = construir_precios_texto(config)
+        handoff_message = config.get("handoff_message", "Give me just a sec, let me check that for you 😊")
+
         historial_corto = construir_historial_corto(
             session_id=session_id,
             hasta_message_id=first_message_id,
@@ -166,14 +185,26 @@ def procesar_mensaje_o_grupo(grupo):
         print(f"[DEBUG] Intent detected: {intent_principal} | confidence={confianza}")
         print(f"[DEBUG] Handoff suggested: {handoff_recommended} | reason={handoff_reason}")
 
+        # Check if price is unknown for a specific request
+        if intent_principal in ("price_interest", "custom_request", "specific_content_request"):
+            precio_desconocido = detectar_precio_desconocido(contenido_para_ia, config)
+            if precio_desconocido:
+                handoff_recommended = True
+                handoff_reason = f"Price unknown for: {precio_desconocido}"
+                print(f"[HANDOFF] Unknown price detected: {precio_desconocido}")
+
         if intent_principal == "social_link_request":
-            respuesta = responder_enlace_o_red(contenido_para_ia)
+            respuesta = responder_enlace_o_red(contenido_para_ia, config)
+        elif handoff_recommended:
+            # Send bridge message before handing off
+            respuesta = handoff_message
         else:
             respuesta = generar_respuesta_ia_local(
                 mensaje_cliente=contenido_para_ia,
                 historial_corto=historial_corto,
                 intenciones=[intent_principal],
-                estado_cliente="chatting"
+                estado_cliente="chatting",
+                precios_texto=precios_texto,
             )
 
         print(f"[DEBUG] Raw final reply: {repr(respuesta)}")
@@ -230,6 +261,36 @@ def procesar_mensaje_o_grupo(grupo):
             print(f"[ERROR] Group {ids}: {e}")
 
 
+def detectar_precio_desconocido(mensaje: str, config: dict) -> str | None:
+    """
+    Returns a description if the customer is asking about something
+    whose price is null/unknown in config.
+    """
+    t = mensaje.lower()
+
+    # Only check if the message seems price-related
+    price_signals = ["how much", "price", "cost", "how many", "what does", "pay", "buy", "get"]
+    if not any(s in t for s in price_signals):
+        return None
+
+    # Check config for null-value price entries
+    for key, value in config.items():
+        if not (key.startswith("price_") or key.startswith("pack_") or
+                key.startswith("video_") or key.startswith("custom_")):
+            continue
+        if value is None or value.strip() == "":
+            # Check if message hints at this product
+            key_words = key.replace("_", " ").lower().split()
+            if any(w in t for w in key_words if len(w) > 3):
+                return key.replace("_", " ")
+
+    # If it's a custom request and no price found, always escalate
+    if "custom" in t or "personali" in t or "special" in t or "specific" in t:
+        return "custom content"
+
+    return None
+
+
 def procesar_opener_pendiente(item):
     opener_id = item["id"]
     session_id = item["session_id"]
@@ -237,11 +298,7 @@ def procesar_opener_pendiente(item):
 
     en_handoff, reason = session_esta_en_handoff(session_id)
     if en_handoff:
-        update_opener_request(
-            opener_id,
-            "waiting_human",
-            error_text=reason or "Chat is waiting for human"
-        )
+        update_opener_request(opener_id, "waiting_human", error_text=reason or "Chat is waiting for human")
         print(f"[HANDOFF] Opener {opener_id} skipped because session is in HUMAN mode")
         return
 
@@ -249,7 +306,6 @@ def procesar_opener_pendiente(item):
 
     try:
         historial_corto = construir_historial_corto(session_id, limite=6)
-
         print(f"[DEBUG] Generating opener: id={opener_id}, type={opener_type}")
 
         sugerencia = generar_opener_ia_local(
@@ -263,20 +319,11 @@ def procesar_opener_pendiente(item):
         if not sugerencia or not sugerencia.strip():
             raise ValueError(f"Empty opener from local AI for opener_type={opener_type}")
 
-        update_opener_request(
-            opener_id,
-            "done",
-            suggestion_text=sugerencia.strip()
-        )
-
+        update_opener_request(opener_id, "done", suggestion_text=sugerencia.strip())
         print(f"[OK] Generated {opener_type} opener {opener_id}")
 
     except Exception as e:
-        update_opener_request(
-            opener_id,
-            "error",
-            error_text=str(e)
-        )
+        update_opener_request(opener_id, "error", error_text=str(e))
         print(f"[ERROR] Opener {opener_id}: {e}")
 
 
