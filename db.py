@@ -15,7 +15,7 @@ def get_supabase():
     if not url or not key:
        url = st.secrets["SUPABASE_URL"]
        key = st.secrets["SUPABASE_KEY"]
-    return create_client(url, key)
+    return create_client(url,key)
 
 
 def create_test_session(tester_name: str, platform: str) -> str:
