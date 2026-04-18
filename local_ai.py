@@ -371,7 +371,7 @@ def responder_enlace_o_red(mensaje_cliente: str) -> str:
         url = LINKS_CONFIG.get("backup_page", "").strip()
         return f"Yes, here's the other page 😘 {url}" if url else "I do have another page 😘 Want me to send it to you here?"
 
-    return "I do, yeah 😘 Which one did you want — Instagram or OnlyFans?"
+    return "I do, yeah 😘 Which one did you want — Instagram, OnlyFans, Twitter or my page where u can se all that and abit more of me?"
 
 
 def detectar_intencion_ia_local(
@@ -669,7 +669,7 @@ def generar_opener_ia_local(
             return texto
     except Exception as e:
         print(f"[OPENER ERROR first attempt] {e}")
-
+        
     retry_messages = [
         {"role": "system", "content": SYSTEM_PROMPT_OPENER},
         {"role": "user", "content": (
