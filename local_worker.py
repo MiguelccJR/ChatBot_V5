@@ -1,4 +1,5 @@
 ﻿import time
+import json
 from datetime import datetime
 
 from db import (
@@ -30,6 +31,57 @@ def parse_dt(value):
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
     except Exception:
         return None
+
+
+def normalizar_categorias_detectadas(valor):
+    if not valor:
+        return []
+
+    if isinstance(valor, list):
+        return valor
+
+    if isinstance(valor, str):
+        try:
+            data = json.loads(valor)
+            return data if isinstance(data, list) else []
+        except Exception:
+            return []
+
+    return []
+
+
+def session_esta_en_handoff(session_id: str) -> tuple[bool, str]:
+    mensajes = get_chat_messages(session_id)
+
+    for m in reversed(mensajes):
+        if m.get("role") != "assistant":
+            continue
+
+        categorias = normalizar_categorias_detectadas(m.get("categorias_detectadas"))
+
+        for cat in categorias:
+            if not isinstance(cat, dict):
+                continue
+
+            if cat.get("handoff_recommended") is True:
+                reason = str(cat.get("handoff_reason", "") or "")
+                return True, reason
+
+    return False, ""
+
+
+def mover_grupo_a_espera_humana(grupo, reason: str = ""):
+    motivo = reason or "Waiting for human reply"
+
+    for msg in grupo:
+        update_chat_message_status(
+            msg["id"],
+            "waiting_human",
+            error_text=motivo
+        )
+
+    ids = [m["id"] for m in grupo]
+    print(f"[HANDOFF] Group {ids} moved to waiting_human | reason={motivo}")
 
 
 def construir_historial_corto(session_id: str, hasta_message_id: int | None = None, limite: int = 6):
@@ -94,6 +146,12 @@ def procesar_mensaje_o_grupo(grupo):
     last_message_id = last_msg["id"]
     session_id = first_msg["session_id"]
     turn_number = last_msg.get("turn_number", 0)
+
+    # Si el chat ya está en handoff, no seguimos con IA
+    en_handoff, reason = session_esta_en_handoff(session_id)
+    if en_handoff:
+        mover_grupo_a_espera_humana(grupo, reason)
+        return
 
     for msg in grupo:
         update_chat_message_status(msg["id"], "processing")
@@ -176,6 +234,9 @@ def procesar_mensaje_o_grupo(grupo):
         for msg in grupo:
             update_chat_message_status(msg["id"], "done")
 
+        if handoff_recommended:
+            print(f"[HANDOFF] Session {session_id} marked for human after this reply | reason={handoff_reason}")
+
         if len(grupo) == 1:
             print(f"[OK] Replied to message {first_message_id}")
         else:
@@ -197,6 +258,16 @@ def procesar_opener_pendiente(item):
     opener_id = item["id"]
     session_id = item["session_id"]
     opener_type = item["opener_type"]
+
+    en_handoff, reason = session_esta_en_handoff(session_id)
+    if en_handoff:
+        update_opener_request(
+            opener_id,
+            "waiting_human",
+            error_text=reason or "Chat is waiting for human"
+        )
+        print(f"[HANDOFF] Opener {opener_id} skipped because session is in human handoff")
+        return
 
     update_opener_request(opener_id, "processing")
 

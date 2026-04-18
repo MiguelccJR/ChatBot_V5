@@ -428,46 +428,55 @@ def construir_instruccion_contextual(intenciones: list[str]) -> str:
 
     if "specific_content_request" in intenciones:
         return """
-The customer is asking about a specific content idea.
-Acknowledge the exact idea they mentioned.
-Do not answer vaguely.
-Stay playful, natural, and slightly flirty.
-Ask at most one short follow-up question that helps move the conversation forward.
-Do not promise a price or delivery yet.
-""".strip()
+        The customer is asking about a specific content idea.
+        Acknowledge the exact idea they mentioned.
+        Do not answer vaguely.
+        Stay playful, natural, and slightly flirty.
+        Ask at most one short follow-up question that helps move the conversation forward.
+        Do not promise a price or delivery yet.
+        """.strip()
 
     if "custom_request" in intenciones:
         return """
-The customer is asking about personalized content.
-Acknowledge it clearly.
-Stay warm, playful, and natural.
-Ask one short follow-up question to understand what they want.
-Do not invent a price.
-""".strip()
+        The customer is asking about personalized content.
+        Acknowledge it clearly.
+        Stay warm, playful, and natural.
+        Ask one short follow-up question to understand what they want.
+        Do not invent a price.
+        """.strip()
 
     if "price_interest" in intenciones:
         return """
-The customer is asking about prices or menu.
-Do not invent exact prices unless they are explicitly provided by the system.
-Keep the reply natural and useful.
-Move the conversation forward with one short question if needed.
-""".strip()
+        The customer is asking about prices or menu.
+        Do not invent exact prices unless they are explicitly provided by the system.
+        Keep the reply natural and useful.
+        Move the conversation forward with one short question if needed.
+        """.strip()
 
     if "high_intent" in intenciones:
         return """
-The customer is showing strong interest.
-Be a little more confident and engaging.
-Keep the momentum going naturally.
-Do not sound generic or overly sweet.
-""".strip()
+        The customer is showing strong interest.
+        Be a little more confident and engaging.
+        Keep the momentum going naturally.
+        Do not sound generic or overly sweet.
+        """.strip()
 
     if "social_link_request" in intenciones:
         return """
-The customer is asking for a social media or external link.
-Do not invent usernames or links.
-If a real link is already provided by the system, use it naturally.
-Keep the reply short, casual, and human.
-""".strip()
+        The customer is asking for a social media or external link.
+        Do not invent usernames or links.
+        If a real link is already provided by the system, use it naturally.
+        Keep the reply short, casual, and human.
+        """.strip()
+
+    if "human_handoff" in intenciones:
+        return """
+        The customer likely needs a human reply soon.
+        Write one short, warm bridge message.
+        Do not go deeper into negotiation or details.
+        Do not make promises.
+        Keep it natural, calm, and brief.
+        """.strip()
 
     return ""
 
