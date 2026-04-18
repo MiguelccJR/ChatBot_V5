@@ -1,4 +1,6 @@
 import os
+from datetime import datetime, timezone
+
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -6,13 +8,14 @@ load_dotenv()
 
 from supabase import create_client
 
+
 def get_supabase():
     url = os.getenv("SUPABASE_URL")
     key = os.getenv("SUPABASE_KEY")
     if not url or not key:
        url = st.secrets["SUPABASE_URL"]
-       key = st.secrets["SUPABASE_KEY"] 
-    return create_client(url,key)
+       key = st.secrets["SUPABASE_KEY"]
+    return create_client(url, key)
 
 
 def create_test_session(tester_name: str, platform: str) -> str:
@@ -21,11 +24,68 @@ def create_test_session(tester_name: str, platform: str) -> str:
         supabase.table("test_sessions")
         .insert({
             "tester_name": tester_name,
-            "platform": platform
+            "platform": platform,
+            "control_mode": "bot",
         })
         .execute()
     )
     return response.data[0]["id"]
+
+
+def get_test_session(session_id: str):
+    supabase = get_supabase()
+    response = (
+        supabase.table("test_sessions")
+        .select("*")
+        .eq("id", session_id)
+        .limit(1)
+        .execute()
+    )
+    if response.data:
+        return response.data[0]
+    return None
+
+
+def get_session_control_state(session_id: str) -> dict:
+    row = get_test_session(session_id)
+    if not row:
+        return {
+            "control_mode": "bot",
+            "handoff_reason": "",
+            "handoff_since": None,
+        }
+
+    return {
+        "control_mode": row.get("control_mode", "bot") or "bot",
+        "handoff_reason": row.get("handoff_reason", "") or "",
+        "handoff_since": row.get("handoff_since"),
+    }
+
+
+def set_session_control_mode(session_id: str, control_mode: str, handoff_reason: str | None = None):
+    supabase = get_supabase()
+
+    if control_mode not in ("bot", "human"):
+        raise ValueError("control_mode must be 'bot' or 'human'")
+
+    payload = {
+        "control_mode": control_mode,
+    }
+
+    if control_mode == "human":
+        payload["handoff_reason"] = handoff_reason or ""
+        payload["handoff_since"] = datetime.now(timezone.utc).isoformat()
+    else:
+        payload["handoff_reason"] = None
+        payload["handoff_since"] = None
+
+    response = (
+        supabase.table("test_sessions")
+        .update(payload)
+        .eq("id", session_id)
+        .execute()
+    )
+    return response.data
 
 
 def save_message_turn(
@@ -67,9 +127,6 @@ def save_feedback(session_id: str, turn_number: int, rating: str, comment: str):
     )
 
 
-# ----------------------------
-# New helpers for chat_messages
-# ----------------------------
 def create_chat_message(
     session_id: str,
     turn_number: int,
@@ -141,9 +198,6 @@ def update_chat_message_status(
         "error_text": error_text
     }
 
-    #if processed:
-     #   payload["processed_at"] = "now()"
-
     response = (
         supabase.table("chat_messages")
         .update(payload)
@@ -166,6 +220,7 @@ def mark_chat_message_processed(message_id: int, status: str = "done", error_tex
         .execute()
     )
     return response.data
+
 
 def create_opener_request(session_id: str, opener_type: str = "soft"):
     supabase = get_supabase()

@@ -1,5 +1,4 @@
 ﻿import time
-import json
 from datetime import datetime
 
 from db import (
@@ -9,6 +8,8 @@ from db import (
     update_chat_message_status,
     get_pending_opener_requests,
     update_opener_request,
+    get_session_control_state,
+    set_session_control_mode,
 )
 from local_ai import (
     generar_respuesta_ia_local,
@@ -33,41 +34,12 @@ def parse_dt(value):
         return None
 
 
-def normalizar_categorias_detectadas(valor):
-    if not valor:
-        return []
-
-    if isinstance(valor, list):
-        return valor
-
-    if isinstance(valor, str):
-        try:
-            data = json.loads(valor)
-            return data if isinstance(data, list) else []
-        except Exception:
-            return []
-
-    return []
-
-
 def session_esta_en_handoff(session_id: str) -> tuple[bool, str]:
-    mensajes = get_chat_messages(session_id)
+    state = get_session_control_state(session_id)
+    control_mode = state.get("control_mode", "bot")
+    handoff_reason = state.get("handoff_reason", "") or ""
 
-    for m in reversed(mensajes):
-        if m.get("role") != "assistant":
-            continue
-
-        categorias = normalizar_categorias_detectadas(m.get("categorias_detectadas"))
-
-        for cat in categorias:
-            if not isinstance(cat, dict):
-                continue
-
-            if cat.get("handoff_recommended") is True:
-                reason = str(cat.get("handoff_reason", "") or "")
-                return True, reason
-
-    return False, ""
+    return control_mode == "human", handoff_reason
 
 
 def mover_grupo_a_espera_humana(grupo, reason: str = ""):
@@ -147,7 +119,6 @@ def procesar_mensaje_o_grupo(grupo):
     session_id = first_msg["session_id"]
     turn_number = last_msg.get("turn_number", 0)
 
-    # Si el chat ya está en handoff, no seguimos con IA
     en_handoff, reason = session_esta_en_handoff(session_id)
     if en_handoff:
         mover_grupo_a_espera_humana(grupo, reason)
@@ -235,7 +206,12 @@ def procesar_mensaje_o_grupo(grupo):
             update_chat_message_status(msg["id"], "done")
 
         if handoff_recommended:
-            print(f"[HANDOFF] Session {session_id} marked for human after this reply | reason={handoff_reason}")
+            set_session_control_mode(
+                session_id=session_id,
+                control_mode="human",
+                handoff_reason=handoff_reason or f"Handoff triggered by {intent_principal}",
+            )
+            print(f"[HANDOFF] Session {session_id} switched to HUMAN mode | reason={handoff_reason}")
 
         if len(grupo) == 1:
             print(f"[OK] Replied to message {first_message_id}")
@@ -266,7 +242,7 @@ def procesar_opener_pendiente(item):
             "waiting_human",
             error_text=reason or "Chat is waiting for human"
         )
-        print(f"[HANDOFF] Opener {opener_id} skipped because session is in human handoff")
+        print(f"[HANDOFF] Opener {opener_id} skipped because session is in HUMAN mode")
         return
 
     update_opener_request(opener_id, "processing")
