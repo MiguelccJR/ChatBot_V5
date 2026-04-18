@@ -289,10 +289,52 @@ def update_opener_request(
         .execute()
     )
     return response.data
+
+
+# ============================================================
+# bot_config helpers
+# ============================================================
+
+def get_bot_config(category: str | None = None) -> list:
+    """Returns all config rows, optionally filtered by category."""
+    supabase = get_supabase()
+    query = supabase.table("bot_config").select("*").eq("active", True)
+    if category:
+        query = query.eq("category", category)
+    response = query.order("category").order("key").execute()
+    return response.data or []
+
+
+def get_bot_config_dict(category: str | None = None) -> dict:
+    """Returns config as {key: value} dict for easy lookup."""
+    rows = get_bot_config(category)
+    return {row["key"]: row["value"] for row in rows}
+
+
+def upsert_bot_config(category: str, key: str, value: str, description: str = "") -> dict:
+    """Create or update a config entry."""
+    supabase = get_supabase()
     response = (
-        supabase.table("opener_suggestions")
-        .update(payload)
-        .eq("id", opener_id)
+        supabase.table("bot_config")
+        .upsert({
+            "category": category,
+            "key": key,
+            "value": value,
+            "description": description,
+            "active": True,
+        }, on_conflict="key")
         .execute()
     )
-    return response.data
+    return response.data[0] if response.data else {}
+
+
+def delete_bot_config(key: str) -> bool:
+    """Soft delete by setting active=False."""
+    supabase = get_supabase()
+    response = (
+        supabase.table("bot_config")
+        .update({"active": False})
+        .eq("key", key)
+        .execute()
+    )
+    return bool(response.data)
