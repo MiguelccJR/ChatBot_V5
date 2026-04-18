@@ -289,3 +289,10 @@ def update_opener_request(
         .execute()
     )
     return response.data
+    response = (
+        supabase.table("opener_suggestions")
+        .update(payload)
+        .eq("id", opener_id)
+        .execute()
+    )
+    return response.data
