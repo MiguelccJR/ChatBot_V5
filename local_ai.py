@@ -1,5 +1,4 @@
-﻿
-import re
+﻿import re
 import json
 from openai import OpenAI
 
@@ -66,10 +65,10 @@ Do not use quotation marks.
 
 LINKS_CONFIG = {
     "instagram": "https://instagram.com/TU_USUARIO_REAL",
-    "OnlyFans": "https://onlyfans.com/TU_USUARIO_REAL",
+    "onlyfans": "https://onlyfans.com/TU_USUARIO_REAL",
     "x": "https://x.com/TU_USUARIO_REAL",
     "tiktok": "https://www.tiktok.com/@TU_USUARIO_REAL",
-    "backup_page": "https://TU_PAGINA_O_LINK_REAL",
+    "website": "https://TU_WEB_REAL",
 }
 
 DETECTION_PROMPT = """
@@ -338,6 +337,16 @@ def extraer_json_obj(texto: str) -> dict:
 def detectar_red_solicitada(mensaje_cliente: str) -> str | None:
     t = (mensaje_cliente or "").lower()
 
+    # Generic social/all links request
+    generic_keywords = [
+        "socials", "social media", "where can i find you",
+        "where else", "other platforms", "all your links",
+        "link in bio", "linktree", "all of them", "everything",
+        "where are you", "find you online", "your pages",
+    ]
+    if any(kw in t for kw in generic_keywords):
+        return "all"
+
     if "onlyfans" in t or "only fans" in t:
         return "onlyfans"
     if "instagram" in t or "insta" in t or "ig" in t:
@@ -346,8 +355,8 @@ def detectar_red_solicitada(mensaje_cliente: str) -> str | None:
         return "x"
     if "tiktok" in t or "tik tok" in t:
         return "tiktok"
-    if "other page" in t or "other site" in t or "other link" in t or "another page" in t:
-        return "backup_page"
+    if "website" in t or "web" in t or "site" in t or "page" in t:
+        return "website"
 
     return None
 
@@ -355,8 +364,30 @@ def detectar_red_solicitada(mensaje_cliente: str) -> str | None:
 def responder_enlace_o_red(mensaje_cliente: str) -> str:
     red = detectar_red_solicitada(mensaje_cliente)
 
+    if red == "all":
+        ig = LINKS_CONFIG.get("instagram", "")
+        of = LINKS_CONFIG.get("onlyfans", "")
+        tw = LINKS_CONFIG.get("x", "")
+        tt = LINKS_CONFIG.get("tiktok", "")
+        web = LINKS_CONFIG.get("website", "")
+        partes = []
+        if ig:
+            partes.append(f"Instagram: {ig}")
+        if of:
+            partes.append(f"OnlyFans: {of}")
+        if tw:
+            partes.append(f"Twitter/X: {tw}")
+        if tt:
+            partes.append(f"TikTok: {tt}")
+        if web:
+            partes.append(f"Website: {web}")
+        if partes:
+            links = " | ".join(partes)
+            return f"Here are all my links 😘 {links}"
+        return "You can find me on Instagram, OnlyFans, TikTok and Twitter 😘 Want me to send you the links?"
+
     if red == "onlyfans":
-        url = LINKS_CONFIG.get("OnlyFans", "").strip()
+        url = LINKS_CONFIG.get("onlyfans", "").strip()
         return f"Yeah, here you go 😘 {url}" if url else "I do have OnlyFans 😘 Want me to send you the link?"
     if red == "instagram":
         url = LINKS_CONFIG.get("instagram", "").strip()
@@ -367,11 +398,11 @@ def responder_enlace_o_red(mensaje_cliente: str) -> str:
     if red == "tiktok":
         url = LINKS_CONFIG.get("tiktok", "").strip()
         return f"Yep, here it is 😘 {url}" if url else "I do have TikTok 😘 Want me to send it to you here?"
-    if red == "backup_page":
-        url = LINKS_CONFIG.get("backup_page", "").strip()
-        return f"Yes, here's the other page 😘 {url}" if url else "I do have another page 😘 Want me to send it to you here?"
+    if red == "website":
+        url = LINKS_CONFIG.get("website", "").strip()
+        return f"Yes, here's my page 😘 {url}" if url else "I do have a website 😘 Want me to send you the link?"
 
-    return "I do, yeah 😘 Which one did you want — Instagram, OnlyFans, Twitter or my page where u can se all that and abit more of me?"
+    return "I do, yeah 😘 Which one did you want — Instagram, OnlyFans, TikTok or Twitter?"
 
 
 def detectar_intencion_ia_local(
@@ -669,7 +700,7 @@ def generar_opener_ia_local(
             return texto
     except Exception as e:
         print(f"[OPENER ERROR first attempt] {e}")
-        
+
     retry_messages = [
         {"role": "system", "content": SYSTEM_PROMPT_OPENER},
         {"role": "user", "content": (
