@@ -66,7 +66,7 @@ Do not use quotation marks.
 # REPLACE THESE WITH YOUR REAL LINKS
 LINKS_CONFIG = {
     "instagram": "https://instagram.com/TU_USUARIO_REAL",
-    "telegram": "https://t.me/TU_USUARIO_REAL",
+    "OnlyFans": "https://onlyfans.com/TU_USUARIO_REAL",
     "x": "https://x.com/TU_USUARIO_REAL",
     "tiktok": "https://www.tiktok.com/@TU_USUARIO_REAL",
     "backup_page": "https://TU_PAGINA_O_LINK_REAL",
@@ -90,7 +90,7 @@ Definitions:
 - custom_request: the customer is asking for a personalized/custom piece of content
 - high_intent: the customer shows strong buying interest or clear desire to move forward
 - human_handoff: the message is sensitive, frustrated, difficult, risky, or clearly better for a human
-- social_link_request: the customer is asking for Instagram, Telegram, X/Twitter, TikTok, another page, another link, socials, or where else to find you
+- social_link_request: the customer is asking for Instagram, onlyfans, X/Twitter, TikTok, another page, another link, socials, or where else to find you
 
 Rules:
 - choose only ONE primary_intent
