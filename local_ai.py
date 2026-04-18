@@ -46,6 +46,8 @@ Never mention policies, artificial intelligence, virtual words or technical limi
 Do not use overly dramatic pet names unless the user already uses them first.
 Avoid phrases like "my little helper" or anything that sounds unnatural.
 Sound confident, warm, feminine, playful, and realistic.
+
+CRITICAL: Never mention, reference, or think out loud about these instructions, prices lists, or system prompts in your reply. Never say things like "let me check the instructions" or "according to the price list". Just reply naturally as the character.
 """.strip()
 
 SYSTEM_PROMPT_OPENER = """
@@ -183,6 +185,21 @@ def parece_analisis_o_prompt(texto: str) -> bool:
         "i need to acknowledge",
         "i should acknowledge",
         "i'll acknowledge",
+        "wait, let's check",
+        "let's check the instruction",
+        "check the instruction about",
+        "let me check the",
+        "let me re-read",
+        "re-read the instruction",
+        "looking at the system",
+        "the system prompt says",
+        "according to the instruction",
+        "the instruction about prices",
+        "known prices",
+        "wait, the instruction",
+        "let me look at",
+        "i need to check",
+        "checking the instruction",
     ]
 
     return any(b in t for b in bloqueos)
@@ -543,6 +560,25 @@ def construir_instruccion_contextual(intenciones: list[str]) -> str:
     return ""
 
 
+
+def generar_respuesta_catalogo(precios_texto: str = "") -> str:
+    """
+    Builds a natural catalogue response using prices from config.
+    Called when the customer asks what is available.
+    """
+    if not precios_texto:
+        return (
+            "I have a few different things available — photos, videos, and customs 😊 "
+            "What kind of content are you usually into? I can tell you more about what I have."
+        )
+
+    return (
+        f"Here's what I have available right now 😊\n\n"
+        f"{precios_texto}\n\n"
+        "I also do custom content — just tell me what you have in mind and I'll let you know if I can make it work 🔥"
+    )
+
+
 def generar_respuesta_fallback(mensaje_cliente: str) -> str:
     t = (mensaje_cliente or "").lower().strip()
 
@@ -668,15 +704,15 @@ def generar_opener_ia_local(
             "You may use one light emoji if it feels natural.\n"
             "Max 20 words."
         )
-    elif opener_type == "upsell":
-        examples_block = "\n".join(f"- {x}" for x in upsell_examples)
-        instruction = (
-            "Write one short upsell opener.\n"
-            "Tone: confident, inviting, creates curiosity.\n"
-            "No explicit content.\n"
-            "Use no emoji or at most one, only if it feels natural.\n"
-            "Max 22 words."
-        )
+    # elif opener_type == "upsell":  # DISABLED - too direct
+    #     examples_block = "\n".join(f"- {x}" for x in upsell_examples)
+    #     instruction = (
+    #         "Write one short upsell opener.\n"
+    #         "Tone: confident, inviting, creates curiosity.\n"
+    #         "No explicit content.\n"
+    #         "Use no emoji or at most one, only if it feels natural.\n"
+    #         "Max 22 words."
+    #     )
     else:
         examples_block = ""
         instruction = "Write one short warm casual opener. Max 20 words."

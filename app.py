@@ -452,7 +452,7 @@ if latest_requested_opener:
 
 st.markdown("### Suggested openers")
 
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 
 with col1:
     if st.button("Soft opener", use_container_width=True):
@@ -464,10 +464,11 @@ with col2:
         solicitar_opener_ai(chat_activo, "flirty")
         st.rerun()
 
-with col3:
-    if st.button("Upsell opener", use_container_width=True):
-        solicitar_opener_ai(chat_activo, "upsell")
-        st.rerun()
+# Upsell opener disabled - too direct
+# with col3:
+#     if st.button("Upsell opener", use_container_width=True):
+#         solicitar_opener_ai(chat_activo, "upsell")
+#         st.rerun()
 
 if chat_activo["suggested_opener"]:
     st.info(chat_activo["suggested_opener"])

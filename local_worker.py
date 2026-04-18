@@ -17,6 +17,7 @@ from local_ai import (
     generar_opener_ia_local,
     detectar_intencion_ia_local,
     responder_enlace_o_red,
+    generar_respuesta_catalogo,
 )
 
 POLL_SECONDS = 1.5
@@ -125,6 +126,20 @@ def construir_precios_texto(config: dict) -> str:
     return "\n".join(lineas) if lineas else ""
 
 
+def cliente_pregunta_catalogo(mensaje: str) -> bool:
+    """Detects if the customer is asking what is available."""
+    t = mensaje.lower()
+    keywords = [
+        "what do you have", "what do you offer", "what can i get",
+        "what's available", "what is available", "show me what",
+        "what kind of content", "what content do you", "what do you sell",
+        "menu", "price list", "what do you do", "options", "packages",
+        "what can i buy", "what can i order", "what packs",
+        "tell me what you have", "what are your",
+    ]
+    return any(kw in t for kw in keywords)
+
+
 def procesar_mensaje_o_grupo(grupo):
     first_msg = grupo[0]
     last_msg = grupo[-1]
@@ -198,6 +213,8 @@ def procesar_mensaje_o_grupo(grupo):
         elif handoff_recommended:
             # Send bridge message before handing off
             respuesta = handoff_message
+        elif cliente_pregunta_catalogo(contenido_para_ia):
+            respuesta = generar_respuesta_catalogo(precios_texto)
         else:
             respuesta = generar_respuesta_ia_local(
                 mensaje_cliente=contenido_para_ia,
