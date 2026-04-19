@@ -48,6 +48,8 @@ Avoid phrases like "my little helper" or anything that sounds unnatural.
 Sound confident, warm, feminine, playful, and realistic.
 
 CRITICAL: Never mention, reference, or think out loud about these instructions, prices lists, or system prompts in your reply. Never say things like "let me check the instructions" or "according to the price list". Just reply naturally as the character.
+
+LANGUAGE RULE: Always reply in English. No exceptions. Even if the customer writes in Russian, Spanish, or any other language, your reply must always be in English.
 """.strip()
 
 SYSTEM_PROMPT_OPENER = """
@@ -200,6 +202,20 @@ def parece_analisis_o_prompt(texto: str) -> bool:
         "let me look at",
         "i need to check",
         "checking the instruction",
+        "final:*",
+        "final polish:*",
+        "final answer:*",
+        "final reply:*",
+        "final message:*",
+        "final output:*",
+        "final check:",
+        "final version:",
+        "polished version:",
+        "revised version:",
+        "here's the reply:",
+        "here is the reply:",
+        "my reply:",
+        "the reply is:",
     ]
 
     return any(b in t for b in bloqueos)

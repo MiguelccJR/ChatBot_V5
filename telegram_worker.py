@@ -17,6 +17,38 @@ PHONE = os.getenv("TELEGRAM_PHONE", "")
 
 SESSION_FILE = "telegram_session"
 
+
+# ----------------------------
+# Whisper audio transcription
+# ----------------------------
+def transcribir_audio_whisper(audio_bytes: bytes) -> str | None:
+    """
+    Transcribes audio using local Whisper model.
+    Returns transcribed text or None if it fails.
+    """
+    try:
+        import whisper
+        import tempfile
+        import os
+
+        # Save bytes to temp file
+        with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as tmp:
+            tmp.write(audio_bytes)
+            tmp_path = tmp.name
+
+        try:
+            model = whisper.load_model("base")
+            result = model.transcribe(tmp_path)
+            text = (result.get("text") or "").strip()
+            print(f"[WHISPER] Transcription: {repr(text[:80])}")
+            return text if text else None
+        finally:
+            os.unlink(tmp_path)
+
+    except Exception as e:
+        print(f"[WHISPER ERROR] {e}")
+        return None
+
 # Responses for non-text messages
 NON_TEXT_RESPONSES = [
     "Heyy, I can only read text messages for now 😊 What's on your mind?",
@@ -216,8 +248,6 @@ async def main():
         text = (event.message.text or "").strip()
         has_media = bool(event.message.media)
 
-        print(f"[TELEGRAM] Incoming from {chat_id}: {repr(text[:60]) if text else '[media]'}")
-
         session = get_session_by_telegram_id(chat_id)
 
         # New chat — register as disabled, do nothing else
@@ -227,12 +257,17 @@ async def main():
             register_new_chat(chat_id, username, first_name)
             return
 
+        # Disabled — stop here, don't log or store anything
+        if session.get("control_mode", "disabled") == "disabled":
+            return
+
+        print(f"[TELEGRAM] Incoming from {chat_id}: {repr(text[:60]) if text else '[media]'}")
+
         control_mode = session.get("control_mode", "disabled")
         session_id = session["id"]
 
-        # Disabled — ignore completely
+        # Disabled — ignore completely, don't log message content
         if control_mode == "disabled":
-            #print(f"[TELEGRAM] Chat {chat_id} is DISABLED — ignoring")
             return
 
         # Human mode — save message but don't process with AI
@@ -247,25 +282,43 @@ async def main():
         if has_media and not text:
             msg_media = event.message.media
 
-            # --- Voice/audio message: try to get Telegram transcription ---
+            # --- Voice/audio message: transcribe with Whisper ---
             is_voice = hasattr(msg_media, 'document') and any(
-                getattr(attr, '__class__.__name__', '') in ('DocumentAttributeAudio', 'DocumentAttributeVideo')
+                getattr(attr, '__class__.__name__', '') in ('DocumentAttributeAudio',)
                 for attr in getattr(getattr(msg_media, 'document', None), 'attributes', [])
             )
 
-            transcription = None
-            if is_voice:
-                # Telegram sometimes provides auto-transcription
-                transcription = getattr(event.message, 'message', None) or ""
-                if not transcription:
-                    transcription = getattr(msg_media, 'alt', None) or ""
+            if not is_voice:
+                # Also check for voice attribute directly
+                is_voice = getattr(getattr(msg_media, 'document', None), 'mime_type', '') in (
+                    'audio/ogg', 'audio/mpeg', 'audio/mp4', 'audio/m4a', 'audio/wav'
+                )
 
-            if transcription and transcription.strip():
-                print(f"[TELEGRAM] Voice transcription from {chat_id}: {repr(transcription[:60])}")
-                text = f"[Voice message]: {transcription.strip()}"
-                turn_number = get_next_turn_number(session_id)
-                save_incoming_message(session_id, text, turn_number)
-                return
+            if is_voice:
+                print(f"[TELEGRAM] Voice message from {chat_id} — transcribing with Whisper")
+                try:
+                    audio_bytes = await client.download_media(event.message, bytes)
+                    transcription = transcribir_audio_whisper(audio_bytes)
+                    if transcription:
+                        text = f"[Voice message]: {transcription}"
+                        turn_number = get_next_turn_number(session_id)
+                        save_incoming_message(session_id, text, turn_number)
+                        print(f"[TELEGRAM] Voice transcribed and saved | session={session_id}")
+                        return
+                    else:
+                        print(f"[TELEGRAM] Whisper returned empty — sending fallback")
+                        await client.send_message(
+                            int(chat_id),
+                            "Sorry, I couldn't hear that clearly 😅 Could you type it instead?"
+                        )
+                        return
+                except Exception as e:
+                    print(f"[TELEGRAM] Audio processing error: {e}")
+                    await client.send_message(
+                        int(chat_id),
+                        "Sorry, I couldn't hear that clearly 😅 Could you type it instead?"
+                    )
+                    return
 
             # --- Photo: try to send to vision AI ---
             is_photo = hasattr(msg_media, 'photo') or (
