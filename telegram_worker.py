@@ -26,28 +26,33 @@ def transcribir_audio_whisper(audio_bytes: bytes) -> str | None:
     Transcribes audio using local Whisper model.
     Returns transcribed text or None if it fails.
     """
+    import whisper
+    import os
+
+    tmp_path = None
     try:
-        import whisper
-        import tempfile
-        import os
+        # Use explicit path in current directory to avoid Windows temp issues
+        tmp_path = os.path.join(os.getcwd(), "_audio_tmp.ogg")
+        with open(tmp_path, "wb") as f:
+            f.write(audio_bytes)
 
-        # Save bytes to temp file
-        with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as tmp:
-            tmp.write(audio_bytes)
-            tmp_path = tmp.name
+        print(f"[WHISPER] Audio saved to {tmp_path} ({len(audio_bytes)} bytes)")
 
-        try:
-            model = whisper.load_model("base")
-            result = model.transcribe(tmp_path)
-            text = (result.get("text") or "").strip()
-            print(f"[WHISPER] Transcription: {repr(text[:80])}")
-            return text if text else None
-        finally:
-            os.unlink(tmp_path)
+        model = whisper.load_model("base")
+        result = model.transcribe(tmp_path, language=None)  # auto-detect language
+        text = (result.get("text") or "").strip()
+        print(f"[WHISPER] Transcription: {repr(text[:80])}")
+        return text if text else None
 
     except Exception as e:
         print(f"[WHISPER ERROR] {e}")
         return None
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
 
 # Responses for non-text messages
 NON_TEXT_RESPONSES = [
