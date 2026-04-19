@@ -1,8 +1,8 @@
--- ============================================================
+Ôªø-- ============================================================
 -- Telegram support schema
 -- ============================================================
 
--- test_sessions: aÒadir campos de Telegram
+-- test_sessions: a√±adir campos de Telegram
 alter table test_sessions
   add column if not exists telegram_chat_id text unique,
   add column if not exists telegram_username text,
@@ -17,7 +17,7 @@ alter table test_sessions
   add constraint test_sessions_control_mode_check
   check (control_mode in ('bot', 'human', 'disabled'));
 
--- chat_messages: aÒadir sent_to_telegram
+-- chat_messages: a√±adir sent_to_telegram
 alter table chat_messages
   add column if not exists sent_to_telegram boolean default false;
 
@@ -26,7 +26,7 @@ update chat_messages
 set sent_to_telegram = true
 where sent_to_telegram is null;
 
--- Õndices
+-- √çndices
 create index if not exists idx_chat_messages_pending_send
   on chat_messages(sent_to_telegram, role, status, source)
   where sent_to_telegram = false
