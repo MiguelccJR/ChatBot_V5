@@ -482,11 +482,20 @@ async def main():
             print(f"[TELEGRAM] Could not notify owner: {e}")
 
     print("[TELEGRAM] Worker running. Listening for messages...")
-    await asyncio.gather(
-        client.run_until_disconnected(),
-        send_pending_replies(),
-    )
+    try:
+        await asyncio.gather(
+            client.run_until_disconnected(),
+            send_pending_replies(),
+        )
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        print("[TELEGRAM] Worker stopped by user.")
+    finally:
+        await client.disconnect()
+        print("[TELEGRAM] Disconnected cleanly.")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
