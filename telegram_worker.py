@@ -1,5 +1,8 @@
 ﻿import os
 import asyncio
+import random
+import base64
+import io
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
@@ -13,6 +16,19 @@ API_HASH = os.getenv("TELEGRAM_API_HASH", "")
 PHONE = os.getenv("TELEGRAM_PHONE", "")
 
 SESSION_FILE = "telegram_session"
+
+# Responses for non-text messages
+NON_TEXT_RESPONSES = [
+    "Heyy, I can only read text messages for now 😊 What's on your mind?",
+    "I can't open that right now 😅 Just text me what you need!",
+    "Aww, I can't view that here 😊 Tell me in words?",
+    "I'm text-only for now 😄 What did you want to say?",
+    "Can't read that one! But I'm here — just text me 😘",
+]
+
+# Typing delay range in seconds (min, max)
+TYPING_DELAY_MIN = 2
+TYPING_DELAY_MAX = 5
 POLL_SEND_SECONDS = 2.0
 
 
@@ -75,6 +91,22 @@ def save_incoming_message(session_id: str, text: str, turn_number: int):
         "source": "telegram",
         "idioma": "en",
         "categorias_detectadas": [],
+        "categorias_respondibles": [],
+    }).execute()
+
+
+def save_incoming_message_with_image(session_id: str, text: str, turn_number: int, img_b64: str):
+    """Saves a message with an embedded image for vision processing."""
+    supabase = get_supabase()
+    supabase.table("chat_messages").insert({
+        "session_id": session_id,
+        "turn_number": turn_number,
+        "role": "user",
+        "content": text,
+        "status": "pending_ai",
+        "source": "telegram",
+        "idioma": "en",
+        "categorias_detectadas": [{"image_b64": img_b64}],
         "categorias_respondibles": [],
     }).execute()
 
@@ -182,11 +214,9 @@ async def main():
 
         chat_id = str(event.chat_id)
         text = (event.message.text or "").strip()
+        has_media = bool(event.message.media)
 
-        if not text:
-            return
-
-        print(f"[TELEGRAM] Incoming from {chat_id}: {repr(text[:60])}")
+        print(f"[TELEGRAM] Incoming from {chat_id}: {repr(text[:60]) if text else '[media]'}")
 
         session = get_session_by_telegram_id(chat_id)
 
@@ -202,17 +232,78 @@ async def main():
 
         # Disabled — ignore completely
         if control_mode == "disabled":
-            print(f"[TELEGRAM] Chat {chat_id} is DISABLED — ignoring")
+            #print(f"[TELEGRAM] Chat {chat_id} is DISABLED — ignoring")
             return
 
         # Human mode — save message but don't process with AI
         if control_mode == "human":
-            turn_number = get_next_turn_number(session_id)
-            save_incoming_message(session_id, text, turn_number)
+            if text:
+                turn_number = get_next_turn_number(session_id)
+                save_incoming_message(session_id, text, turn_number)
             print(f"[TELEGRAM] Chat in HUMAN mode — saved, not processing")
             return
 
+        # Handle media messages
+        if has_media and not text:
+            msg_media = event.message.media
+
+            # --- Voice/audio message: try to get Telegram transcription ---
+            is_voice = hasattr(msg_media, 'document') and any(
+                getattr(attr, '__class__.__name__', '') in ('DocumentAttributeAudio', 'DocumentAttributeVideo')
+                for attr in getattr(getattr(msg_media, 'document', None), 'attributes', [])
+            )
+
+            transcription = None
+            if is_voice:
+                # Telegram sometimes provides auto-transcription
+                transcription = getattr(event.message, 'message', None) or ""
+                if not transcription:
+                    transcription = getattr(msg_media, 'alt', None) or ""
+
+            if transcription and transcription.strip():
+                print(f"[TELEGRAM] Voice transcription from {chat_id}: {repr(transcription[:60])}")
+                text = f"[Voice message]: {transcription.strip()}"
+                turn_number = get_next_turn_number(session_id)
+                save_incoming_message(session_id, text, turn_number)
+                return
+
+            # --- Photo: try to send to vision AI ---
+            is_photo = hasattr(msg_media, 'photo') or (
+                hasattr(msg_media, 'document') and
+                any('image' in str(getattr(attr, 'mime_type', ''))
+                    for attr in getattr(getattr(msg_media, 'document', None), 'attributes', []))
+            )
+
+            if is_photo:
+                print(f"[TELEGRAM] Photo received from {chat_id} — attempting vision processing")
+                try:
+                    # Download image bytes
+                    img_bytes = await client.download_media(event.message, bytes)
+                    img_b64 = base64.b64encode(img_bytes).decode('utf-8')
+
+                    # Save as pending_ai with image data embedded
+                    turn_number = get_next_turn_number(session_id)
+                    image_text = f"[Image attached — base64 data available for vision model]"
+                    save_incoming_message_with_image(session_id, image_text, turn_number, img_b64)
+                    print(f"[TELEGRAM] Photo saved for vision processing | session={session_id}")
+                    return
+                except Exception as e:
+                    print(f"[TELEGRAM] Could not process photo: {e} — sending fallback")
+
+            # --- Fallback for unsupported media ---
+            print(f"[TELEGRAM] Unsupported media from {chat_id} — sending friendly reply")
+            delay = random.uniform(TYPING_DELAY_MIN, TYPING_DELAY_MAX)
+            await asyncio.sleep(delay)
+            async with client.action(int(chat_id), 'typing'):
+                await asyncio.sleep(1.5)
+            response = random.choice(NON_TEXT_RESPONSES)
+            await client.send_message(int(chat_id), response)
+            return
+
         # Bot mode — save as pending_ai for local_worker
+        if not text:
+            return
+
         turn_number = get_next_turn_number(session_id)
         save_incoming_message(session_id, text, turn_number)
         print(f"[TELEGRAM] Saved as pending_ai | session={session_id}")
@@ -269,6 +360,11 @@ async def main():
                         continue
 
                     try:
+                        # Simulate human typing delay
+                        delay = random.uniform(TYPING_DELAY_MIN, TYPING_DELAY_MAX)
+                        await asyncio.sleep(delay)
+                        async with client.action(int(telegram_chat_id), 'typing'):
+                            await asyncio.sleep(random.uniform(1.0, 2.0))
                         await client.send_message(int(telegram_chat_id), msg["content"])
                         mark_message_sent(msg["id"])
                         print(f"[TELEGRAM] Sent to {telegram_chat_id}: {repr(msg['content'][:50])}")

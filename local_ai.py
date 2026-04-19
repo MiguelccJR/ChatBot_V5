@@ -604,6 +604,7 @@ def generar_respuesta_ia_local(
     intenciones: list[str] | None = None,
     estado_cliente: str = "chatting",
     precios_texto: str = "",
+    imagen_b64: str | None = None,
 ) -> str:
     historial_corto = historial_corto or []
     intenciones = intenciones or []
@@ -613,7 +614,22 @@ def generar_respuesta_ia_local(
     while messages_historial and messages_historial[0]["role"] != "user":
         messages_historial.pop(0)
 
-    messages_historial.append({"role": "user", "content": mensaje_cliente})
+    # Build user message — with image if available
+    if imagen_b64:
+        user_content = [
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{imagen_b64}"}
+            },
+            {
+                "type": "text",
+                "text": mensaje_cliente if mensaje_cliente != "[Image attached — base64 data available for vision model]"
+                        else "The customer sent you a photo. React naturally to it."
+            }
+        ]
+        messages_historial.append({"role": "user", "content": user_content})
+    else:
+        messages_historial.append({"role": "user", "content": mensaje_cliente})
 
     extra_instruction = construir_instruccion_contextual(intenciones)
     system_prompt = SYSTEM_PROMPT_BASE
@@ -638,6 +654,7 @@ def generar_respuesta_ia_local(
     except Exception as e:
         print(f"[AI ERROR first attempt] {e}")
 
+    # On retry, drop image to avoid vision errors
     retry_messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": (

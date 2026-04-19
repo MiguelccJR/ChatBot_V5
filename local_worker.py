@@ -112,6 +112,21 @@ def agrupar_mensajes(lista_pendientes):
     return grupos
 
 
+def extraer_imagen_del_mensaje(grupo: list) -> str | None:
+    """
+    Checks if any message in the group has an image embedded
+    in categorias_detectadas (set by telegram_worker).
+    Returns base64 string or None.
+    """
+    for msg in grupo:
+        cats = msg.get("categorias_detectadas") or []
+        if isinstance(cats, list):
+            for cat in cats:
+                if isinstance(cat, dict) and "image_b64" in cat:
+                    return cat["image_b64"]
+    return None
+
+
 def construir_precios_texto(config: dict) -> str:
     """Builds a readable price list from config for the AI system prompt."""
     lineas = []
@@ -216,12 +231,14 @@ def procesar_mensaje_o_grupo(grupo):
         elif cliente_pregunta_catalogo(contenido_para_ia):
             respuesta = generar_respuesta_catalogo(precios_texto)
         else:
+            imagen_b64 = extraer_imagen_del_mensaje(grupo)
             respuesta = generar_respuesta_ia_local(
                 mensaje_cliente=contenido_para_ia,
                 historial_corto=historial_corto,
                 intenciones=[intent_principal],
                 estado_cliente="chatting",
                 precios_texto=precios_texto,
+                imagen_b64=imagen_b64,
             )
 
         print(f"[DEBUG] Raw final reply: {repr(respuesta)}")
