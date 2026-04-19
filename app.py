@@ -1,576 +1,403 @@
-﻿import streamlit as st
-import time
-
-from faq_bot_v5 import crear_estado_conversacion
+﻿import time
+import streamlit as st
 
 from db import (
-    create_test_session,
-    save_feedback,
-    create_chat_message,
+    get_telegram_sessions,
+    get_session_display_name,
     get_chat_messages,
-    create_opener_request,
-    get_latest_opener_request,
     get_session_control_state,
     set_session_control_mode,
+    save_feedback,
+    create_opener_request,
+    get_latest_opener_request,
 )
 
 st.set_page_config(
-    page_title="Chatbot comercial - simulador multi-chat",
+    page_title="Telegram Control Panel",
     layout="wide"
 )
 
-st.title("Chatbot comercial")
-st.caption("Multi-chat testing with local AI")
+st.title("Telegram Control Panel")
+st.caption("Viewer and control panel for real Telegram chats")
 
 
-# ----------------------------
-# Constants
-# ----------------------------
-PLATFORM_OPTIONS = ["test", "telegram", "webchat"]
 OPENER_LABELS = {
     "soft": "Soft opener",
     "flirty": "Flirty opener",
     "upsell": "Upsell opener",
 }
 
+MODE_ICONS = {
+    "bot": "🟢",
+    "human": "🟡",
+    "disabled": "🔴",
+}
+
 
 # ----------------------------
-# Chat helpers
+# Helpers
 # ----------------------------
-def crear_chat(nombre=None, plataforma="test"):
-    chat_id = f"chat_{st.session_state.next_chat_id:03d}"
-    st.session_state.next_chat_id += 1
-
-    if nombre is None:
-        nombre = f"user_{chat_id.split('_')[-1]}"
-
-    return chat_id, {
-        "nombre": nombre,
-        "plataforma": plataforma,
-        "historial": [],
-        "estado_bot": crear_estado_conversacion(),
-        "ultimo_resultado": None,
-        "score": 0,
-        "etiquetas": [],
-        "turn_counter": 0,
-        "db_session_id": None,
-        "suggested_opener": "",
-        "suggested_opener_type": "",
-        "pending_opener_type": None,
-    }
+def cargar_sesiones():
+    try:
+        return get_telegram_sessions(include_disabled=True)
+    except Exception as e:
+        st.error(f"Error loading Telegram sessions: {e}")
+        return []
 
 
-def obtener_chat_activo():
-    return st.session_state.chats[st.session_state.chat_activo]
+def obtener_session_id_activo(sesiones):
+    if "session_id_activo" not in st.session_state:
+        st.session_state.session_id_activo = None
 
+    ids = [s["id"] for s in sesiones]
 
-def reiniciar_chat_activo():
-    chat = obtener_chat_activo()
-    chat["historial"] = []
-    chat["estado_bot"] = crear_estado_conversacion()
-    chat["ultimo_resultado"] = None
-    chat["score"] = 0
-    chat["etiquetas"] = []
-    chat["turn_counter"] = 0
-    chat["db_session_id"] = None
-    chat["suggested_opener"] = ""
-    chat["suggested_opener_type"] = ""
-    chat["pending_opener_type"] = None
-
-
-def eliminar_chat_activo():
-    chat_id = st.session_state.chat_activo
-    if len(st.session_state.chats) <= 1:
-        st.warning("At least one chat must remain.")
-        return
-
-    del st.session_state.chats[chat_id]
-    st.session_state.chat_activo = list(st.session_state.chats.keys())[0]
-
-
-def asegurar_db_session(chat):
-    if chat["db_session_id"] is None:
-        chat["db_session_id"] = create_test_session(
-            tester_name=st.session_state.tester_name or "anonymous",
-            platform=chat["plataforma"]
-        )
-    return chat["db_session_id"]
-
-
-def solicitar_opener_ai(chat, opener_type):
-    asegurar_db_session(chat)
-    chat["suggested_opener"] = ""
-    chat["suggested_opener_type"] = ""
-    chat["pending_opener_type"] = opener_type
-    create_opener_request(
-        session_id=chat["db_session_id"],
-        opener_type=opener_type
-    )
-
-
-def procesar_estado_opener(chat):
-    if chat["db_session_id"] is None:
+    if not ids:
+        st.session_state.session_id_activo = None
         return None
 
-    if not chat.get("pending_opener_type"):
+    if st.session_state.session_id_activo not in ids:
+        st.session_state.session_id_activo = ids[0]
+
+    return st.session_state.session_id_activo
+
+
+def procesar_estado_opener(session_id: str, opener_type: str | None):
+    if not session_id or not opener_type:
         return None
 
     try:
-        latest_request = get_latest_opener_request(
-            chat["db_session_id"],
-            chat["pending_opener_type"]
-        )
+        return get_latest_opener_request(session_id, opener_type)
     except Exception as e:
         st.error(f"Error loading opener suggestion: {e}")
         return None
 
-    if not latest_request:
-        return None
 
-    status = latest_request.get("status")
-    opener_type = latest_request.get("opener_type") or chat["pending_opener_type"]
-
-    if status == "done" and latest_request.get("suggestion_text"):
-        chat["suggested_opener"] = latest_request["suggestion_text"]
-        chat["suggested_opener_type"] = f"opener_{opener_type}"
-        chat["pending_opener_type"] = None
-    elif status == "error":
-        chat["pending_opener_type"] = None
-
-    return latest_request
+def fmt_datetime(value: str | None) -> str:
+    if not value:
+        return "-"
+    return value[:19].replace("T", " ")
 
 
 # ----------------------------
-# Global app initialization
+# Load sessions
 # ----------------------------
-def inicializar_estado_app():
-    if "chats" not in st.session_state:
-        st.session_state.chats = {}
+sesiones = cargar_sesiones()
 
-    if "next_chat_id" not in st.session_state:
-        st.session_state.next_chat_id = 1
-
-    if "chat_activo" not in st.session_state:
-        st.session_state.chat_activo = None
-
-    for cid, chat in st.session_state.chats.items():
-        if "nombre" not in chat:
-            chat["nombre"] = cid
-        if "plataforma" not in chat:
-            chat["plataforma"] = "test"
-        if chat["plataforma"] == "onlyfans":
-            chat["plataforma"] = "webchat"
-        if "historial" not in chat:
-            chat["historial"] = []
-        if "estado_bot" not in chat:
-            chat["estado_bot"] = crear_estado_conversacion()
-        if "ultimo_resultado" not in chat:
-            chat["ultimo_resultado"] = None
-        if "score" not in chat:
-            chat["score"] = 0
-        if "etiquetas" not in chat:
-            chat["etiquetas"] = []
-        if "turn_counter" not in chat:
-            chat["turn_counter"] = 0
-        if "db_session_id" not in chat:
-            chat["db_session_id"] = None
-        if "suggested_opener" not in chat:
-            chat["suggested_opener"] = ""
-        if "suggested_opener_type" not in chat:
-            chat["suggested_opener_type"] = ""
-        if "pending_opener_type" not in chat:
-            chat["pending_opener_type"] = None
-
-    if "mostrar_debug" not in st.session_state:
-        st.session_state.mostrar_debug = True
-
-    if "tester_name" not in st.session_state:
-        st.session_state.tester_name = ""
-
-    if "turn_number_global" not in st.session_state:
-        st.session_state.turn_number_global = 0
-
-    if not st.session_state.chats:
-        chat_id, chat_data = crear_chat(nombre="user_001", plataforma="test")
-        st.session_state.chats[chat_id] = chat_data
-        st.session_state.chat_activo = chat_id
-
-    if st.session_state.chat_activo not in st.session_state.chats:
-        st.session_state.chat_activo = list(st.session_state.chats.keys())[0]
-
-
-inicializar_estado_app()
-
-
-# ----------------------------
-# Sidebar
-# ----------------------------
 with st.sidebar:
-    st.subheader("Chats")
+    st.subheader("Telegram chats")
 
-    st.session_state.tester_name = st.text_input(
-        "Tester name",
-        value=st.session_state.tester_name
-    )
+    if not sesiones:
+        st.info("No Telegram chats registered yet.")
+    else:
+        total = len(sesiones)
+        total_bot = sum(1 for s in sesiones if s.get("control_mode") == "bot")
+        total_human = sum(1 for s in sesiones if s.get("control_mode") == "human")
+        total_disabled = sum(1 for s in sesiones if s.get("control_mode") == "disabled")
 
-    with st.expander("New chat", expanded=False):
-        nuevo_nombre = st.text_input("New chat name", value="")
-        nueva_plataforma = st.selectbox(
-            "Platform",
-            options=PLATFORM_OPTIONS,
-            index=0,
-            key="select_nueva_plataforma"
-        )
+        st.write(f"**Total:** {total}")
+        st.write(f"**Bot:** {total_bot}")
+        st.write(f"**Human:** {total_human}")
+        st.write(f"**Disabled:** {total_disabled}")
 
-        if st.button("Create chat", use_container_width=True):
-            nombre_final = nuevo_nombre.strip() if nuevo_nombre.strip() else None
-            chat_id, chat_data = crear_chat(
-                nombre=nombre_final,
-                plataforma=nueva_plataforma
-            )
-            st.session_state.chats[chat_id] = chat_data
-            st.session_state.chat_activo = chat_id
-            st.rerun()
-
-    opciones_chat = []
-    mapa_labels = {}
-
-    for cid, cdata in st.session_state.chats.items():
-        label = f"{cdata['nombre']} [{cdata['plataforma']}]"
-        opciones_chat.append(cid)
-        mapa_labels[cid] = label
-
-    chat_seleccionado = st.radio(
-        "Select chat",
-        options=opciones_chat,
-        index=opciones_chat.index(st.session_state.chat_activo),
-        format_func=lambda cid: mapa_labels[cid]
-    )
-
-    if chat_seleccionado != st.session_state.chat_activo:
-        st.session_state.chat_activo = chat_seleccionado
-        st.rerun()
-
-    st.divider()
-
-    chat_activo = obtener_chat_activo()
-
-    st.subheader("Edit active chat")
-
-    nuevo_nombre_chat = st.text_input(
-        "Display name",
-        value=chat_activo["nombre"],
-        key="input_nombre_chat_activo"
-    )
-
-    plataforma_actual = chat_activo["plataforma"]
-    if plataforma_actual not in PLATFORM_OPTIONS:
-        plataforma_actual = "test"
-
-    nueva_plataforma_chat = st.selectbox(
-        "Chat platform",
-        options=PLATFORM_OPTIONS,
-        index=PLATFORM_OPTIONS.index(plataforma_actual),
-        key="select_plataforma_chat_activo"
-    )
-
-    if st.button("Save chat changes", use_container_width=True):
-        chat_activo["nombre"] = (
-            nuevo_nombre_chat.strip()
-            if nuevo_nombre_chat.strip()
-            else chat_activo["nombre"]
-        )
-        chat_activo["plataforma"] = nueva_plataforma_chat
-        st.success("Chat updated")
-        st.rerun()
-
-    col_sidebar_1, col_sidebar_2 = st.columns(2)
-
-    with col_sidebar_1:
-        if st.button("Reset chat", use_container_width=True):
-            reiniciar_chat_activo()
-            st.rerun()
-
-    with col_sidebar_2:
-        if st.button("Delete chat", use_container_width=True):
-            eliminar_chat_activo()
-            st.rerun()
-
-    st.divider()
-
-    st.session_state.mostrar_debug = st.checkbox(
-        "Show technical debug",
-        value=st.session_state.mostrar_debug
-    )
-
-    st.divider()
-    st.subheader("Active chat summary")
-    st.write(f"**Name:** {chat_activo['nombre']}")
-    st.write(f"**Platform:** {chat_activo['plataforma']}")
-    st.write(f"**Score:** {chat_activo['score']}")
-    st.write(f"**Tags:** {', '.join(chat_activo['etiquetas']) if chat_activo['etiquetas'] else '-'}")
-    st.write(f"**DB session:** {chat_activo.get('db_session_id') if chat_activo.get('db_session_id') else '-'}")
-    st.write(f"**Pending opener:** {chat_activo.get('pending_opener_type') or '-'}")
-
-    if st.session_state.mostrar_debug:
         st.divider()
-        st.subheader("Bot internal state")
-        st.json(chat_activo["estado_bot"])
 
-        if chat_activo["ultimo_resultado"] is not None:
-            resultado = chat_activo["ultimo_resultado"]
+        filtro_modo = st.selectbox(
+            "Filter by mode",
+            options=["all", "bot", "human", "disabled"],
+            index=0
+        )
 
-            st.divider()
-            st.subheader("Latest analysis")
-            st.write(f"**Detected language:** `{resultado['idioma']}`")
+        busqueda = st.text_input("Search", placeholder="username, name, chat id...").strip().lower()
 
-            st.write("**Detected categories:**")
-            if resultado["categorias_detectadas"]:
-                for item in resultado["categorias_detectadas"]:
-                    if "puntuacion" in item and "confianza" in item:
-                        st.write(
-                            f"- {item['categoria']} | score={item['puntuacion']} | confidence={item['confianza']}"
-                        )
-                    else:
-                        st.write(f"- {item['categoria']}")
-            else:
-                st.write("- None")
+        sesiones_filtradas = sesiones
+        if filtro_modo != "all":
+            sesiones_filtradas = [s for s in sesiones_filtradas if s.get("control_mode") == filtro_modo]
 
-            st.write("**Respondable categories:**")
-            if resultado["categorias_respondibles"]:
-                for item in resultado["categorias_respondibles"]:
-                    if "puntuacion" in item and "confianza" in item:
-                        st.write(
-                            f"- {item['categoria']} | score={item['puntuacion']} | confidence={item['confianza']}"
-                        )
-                    else:
-                        st.write(f"- {item['categoria']}")
-            else:
-                st.write("- None")
+        if busqueda:
+            tmp = []
+            for s in sesiones_filtradas:
+                texto = " ".join([
+                    str(get_session_display_name(s)),
+                    str(s.get("telegram_chat_id") or ""),
+                    str(s.get("telegram_username") or ""),
+                    str(s.get("telegram_first_name") or ""),
+                    str(s.get("tester_name") or ""),
+                ]).lower()
+                if busqueda in texto:
+                    tmp.append(s)
+            sesiones_filtradas = tmp
 
-            st.write("**Generated messages:**")
-            for i, msg in enumerate(resultado["mensajes_respuesta"], start=1):
-                st.write(f"{i}. {msg}")
+        if not sesiones_filtradas:
+            st.warning("No chats match the current filter.")
+        else:
+            session_id_activo = obtener_session_id_activo(sesiones_filtradas)
+
+            opciones = [s["id"] for s in sesiones_filtradas]
+            mapa_labels = {}
+
+            for s in sesiones_filtradas:
+                mode = s.get("control_mode", "disabled")
+                icon = MODE_ICONS.get(mode, "⚪")
+                display = get_session_display_name(s)
+                mapa_labels[s["id"]] = f"{icon} {display}"
+
+            elegido = st.radio(
+                "Select chat",
+                options=opciones,
+                index=opciones.index(session_id_activo) if session_id_activo in opciones else 0,
+                format_func=lambda sid: mapa_labels[sid]
+            )
+
+            if elegido != st.session_state.session_id_activo:
+                st.session_state.session_id_activo = elegido
+                st.rerun()
+
+        if st.button("Refresh panel", use_container_width=True):
+            st.rerun()
 
 
-# ----------------------------
-# Main area
-# ----------------------------
-chat_activo = obtener_chat_activo()
+if not sesiones:
+    st.stop()
+
+session_id_activo = st.session_state.get("session_id_activo")
+sesion = next((s for s in sesiones if s["id"] == session_id_activo), None)
+
+if not sesion:
+    st.warning("No active Telegram chat selected.")
+    st.stop()
+
+display_name = get_session_display_name(sesion)
+chat_id = sesion.get("telegram_chat_id") or "-"
+username = sesion.get("telegram_username") or "-"
+first_name = sesion.get("telegram_first_name") or "-"
+registered_at = fmt_datetime(sesion.get("created_at"))
+last_activity_at = fmt_datetime(sesion.get("last_activity_at"))
+
+try:
+    control_state = get_session_control_state(session_id_activo)
+    control_mode = control_state.get("control_mode", "disabled")
+    handoff_reason = control_state.get("handoff_reason", "")
+    handoff_since = control_state.get("handoff_since")
+except Exception:
+    control_mode = "disabled"
+    handoff_reason = ""
+    handoff_since = None
 
 db_chat_messages = []
-if chat_activo["db_session_id"] is not None:
-    try:
-        db_chat_messages = get_chat_messages(chat_activo["db_session_id"])
-    except Exception as e:
-        st.error(f"Error loading chat messages: {e}")
+try:
+    db_chat_messages = get_chat_messages(session_id_activo)
+except Exception as e:
+    st.error(f"Error loading chat history: {e}")
 
 mensajes_pendientes = [
     m for m in db_chat_messages
-    if m["role"] == "user" and m["status"] in ("pending_ai", "processing")
+    if m["role"] == "user" and m["status"] in ("pending_ai", "processing", "waiting_human")
 ]
 
 hay_pendiente = len(mensajes_pendientes) > 0
 ultimo_pendiente = mensajes_pendientes[-1] if hay_pendiente else None
 
-latest_requested_opener = procesar_estado_opener(chat_activo)
+# opener state
+if "pending_opener_type" not in st.session_state:
+    st.session_state.pending_opener_type = None
+
+latest_requested_opener = procesar_estado_opener(
+    session_id_activo,
+    st.session_state.pending_opener_type
+)
 hay_opener_pendiente = False
 
 if latest_requested_opener:
     hay_opener_pendiente = latest_requested_opener.get("status") in ("pending", "processing")
 
-st.subheader(f"Active chat: {chat_activo['nombre']} [{chat_activo['plataforma']}]")
 
 # ----------------------------
-# Control mode (bot / human)
+# Header
 # ----------------------------
-session_id_activo = chat_activo.get("db_session_id")
+st.subheader(f"{display_name}")
 
-if session_id_activo:
-    try:
-        control_state = get_session_control_state(session_id_activo)
-        control_mode = control_state.get("control_mode", "bot")
-        handoff_reason = control_state.get("handoff_reason", "")
-        handoff_since = control_state.get("handoff_since")
-    except Exception:
-        control_mode = "bot"
-        handoff_reason = ""
-        handoff_since = None
+col_meta1, col_meta2, col_meta3, col_meta4 = st.columns(4)
+with col_meta1:
+    st.write(f"**Mode:** {MODE_ICONS.get(control_mode, '⚪')} {control_mode.upper()}")
+with col_meta2:
+    st.write(f"**Chat ID:** `{chat_id}`")
+with col_meta3:
+    st.write(f"**Username:** {('@' + username) if username and username != '-' else '-'}")
+with col_meta4:
+    st.write(f"**Last activity:** {last_activity_at}")
 
-    if control_mode == "human":
-        st.warning(
-            f"🤚 **Human mode active** — the bot is paused for this chat."
-            + (f" Reason: *{handoff_reason}*" if handoff_reason else "")
-            + (f" Since: {handoff_since[:19].replace('T', ' ')}" if handoff_since else "")
-        )
-        if st.button("🤖 Return to bot", use_container_width=True):
+with st.expander("Chat details", expanded=False):
+    st.write(f"**Session ID:** `{session_id_activo}`")
+    st.write(f"**First name:** {first_name if first_name != '-' else '-'}")
+    st.write(f"**Registered:** {registered_at}")
+    if handoff_reason:
+        st.write(f"**Handoff reason:** {handoff_reason}")
+    if handoff_since:
+        st.write(f"**Handoff since:** {fmt_datetime(handoff_since)}")
+
+
+# ----------------------------
+# Control buttons
+# ----------------------------
+col_ctrl1, col_ctrl2, col_ctrl3 = st.columns(3)
+
+with col_ctrl1:
+    if control_mode != "bot":
+        if st.button("🟢 Set BOT mode", use_container_width=True):
             try:
                 set_session_control_mode(session_id_activo, "bot")
-                st.success("Bot mode restored.")
+                st.success("Bot mode activated.")
                 st.rerun()
             except Exception as e:
                 st.error(f"Error switching to bot mode: {e}")
-    else:
-        st.success("🤖 **Bot mode** — AI is responding automatically.")
-        if st.button("🤚 Take over (human mode)", use_container_width=True):
+
+with col_ctrl2:
+    if control_mode != "human":
+        if st.button("🟡 Set HUMAN mode", use_container_width=True):
             try:
-                set_session_control_mode(session_id_activo, "human", "Manual takeover")
-                st.info("Human mode activated. Bot is now paused.")
+                set_session_control_mode(session_id_activo, "human", "Manual takeover from control panel")
+                st.info("Human mode activated.")
                 st.rerun()
             except Exception as e:
                 st.error(f"Error switching to human mode: {e}")
 
-col_refresh1, col_refresh2 = st.columns([1, 4])
+with col_ctrl3:
+    if control_mode != "disabled":
+        if st.button("🔴 Set DISABLED mode", use_container_width=True):
+            try:
+                set_session_control_mode(session_id_activo, "disabled")
+                st.warning("Chat disabled.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error switching to disabled mode: {e}")
 
-with col_refresh1:
-    if st.button("Refresh chat"):
-        st.rerun()
 
-with col_refresh2:
-    if chat_activo.get("db_session_id"):
-        st.caption(f"Session ID: {chat_activo['db_session_id']}")
+# ----------------------------
+# Status banners
+# ----------------------------
+if control_mode == "human":
+    st.warning(
+        "🤚 Human mode active — the bot is paused for this chat."
+        + (f" Reason: *{handoff_reason}*" if handoff_reason else "")
+        + (f" Since: {fmt_datetime(handoff_since)}" if handoff_since else "")
+    )
+elif control_mode == "disabled":
+    st.error("🔴 Disabled mode — this chat is ignored by the bot.")
+else:
+    st.success("🤖 Bot mode active — AI can respond automatically.")
 
 if ultimo_pendiente:
-    if ultimo_pendiente["status"] == "pending_ai":
+    estado = ultimo_pendiente["status"]
+    if estado == "pending_ai":
         st.info("Reading...")
-    elif ultimo_pendiente["status"] == "processing":
+    elif estado == "processing":
         st.info("Typing...")
+    elif estado == "waiting_human":
+        st.info("Waiting for human reply...")
+
+
+# ----------------------------
+# Suggested openers
+# ----------------------------
+st.markdown("### Suggested openers")
+
+col1, col2 = st.columns(2)
+with col1:
+    if st.button("Soft opener", use_container_width=True):
+        try:
+            create_opener_request(session_id_activo, "soft")
+            st.session_state.pending_opener_type = "soft"
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error requesting opener: {e}")
+
+with col2:
+    if st.button("Flirty opener", use_container_width=True):
+        try:
+            create_opener_request(session_id_activo, "flirty")
+            st.session_state.pending_opener_type = "flirty"
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error requesting opener: {e}")
 
 if latest_requested_opener:
     opener_status = latest_requested_opener.get("status")
-    opener_type = latest_requested_opener.get("opener_type") or chat_activo.get("pending_opener_type")
+    opener_type = latest_requested_opener.get("opener_type") or st.session_state.pending_opener_type
     opener_label = OPENER_LABELS.get(opener_type, "Opener")
 
     if opener_status == "pending":
         st.info(f"Generating {opener_label.lower()}...")
     elif opener_status == "processing":
-        st.info(f"Local AI is preparing the {opener_label.lower()}...")
+        st.info(f"Preparing {opener_label.lower()}...")
     elif opener_status == "error":
-        st.warning(
-            f"{opener_label} error: {latest_requested_opener.get('error_text', 'unknown error')}"
-        )
+        st.warning(f"{opener_label} error: {latest_requested_opener.get('error_text', 'unknown error')}")
+        st.session_state.pending_opener_type = None
+    elif opener_status == "done" and latest_requested_opener.get("suggestion_text"):
+        st.success(latest_requested_opener["suggestion_text"])
+        st.caption("Copy and send manually if you want.")
+        st.session_state.pending_opener_type = None
 
-st.markdown("### Suggested openers")
 
-col1, col2 = st.columns(2)
+# ----------------------------
+# Chat history
+# ----------------------------
+st.markdown("### Chat history")
 
-with col1:
-    if st.button("Soft opener", use_container_width=True):
-        solicitar_opener_ai(chat_activo, "soft")
-        st.rerun()
+if not db_chat_messages:
+    st.info("No messages yet for this chat.")
+else:
+    for i, mensaje in enumerate(db_chat_messages[-100:]):
+        role = mensaje["role"]
+        source = mensaje.get("source", "")
+        status = mensaje.get("status", "")
+        turn_number = mensaje.get("turn_number", 0)
 
-with col2:
-    if st.button("Flirty opener", use_container_width=True):
-        solicitar_opener_ai(chat_activo, "flirty")
-        st.rerun()
+        with st.chat_message(role):
+            st.markdown(mensaje["content"])
 
-# Upsell opener disabled - too direct
-# with col3:
-#     if st.button("Upsell opener", use_container_width=True):
-#         solicitar_opener_ai(chat_activo, "upsell")
-#         st.rerun()
+            meta = []
+            if source:
+                meta.append(f"source={source}")
+            if status:
+                meta.append(f"status={status}")
+            if turn_number is not None:
+                meta.append(f"turn={turn_number}")
 
-if chat_activo["suggested_opener"]:
-    st.info(chat_activo["suggested_opener"])
+            st.caption(" | ".join(meta))
 
-    if st.button("Use opener in chat", use_container_width=True):
-        asegurar_db_session(chat_activo)
+            if role == "assistant":
+                unique_id = f"{session_id_activo}_{turn_number}_{i}"
 
-        chat_activo["turn_counter"] += 1
-        opener_turn_number = chat_activo["turn_counter"]
-
-        create_chat_message(
-            session_id=chat_activo["db_session_id"],
-            turn_number=opener_turn_number,
-            role="assistant",
-            content=chat_activo["suggested_opener"],
-            status="done",
-            source="streamlit",
-            reply_to_message_id=None,
-            idioma="en",
-            categorias_detectadas=[{
-                "categoria": chat_activo["suggested_opener_type"],
-                "puntuacion": 1,
-                "confianza": "manual"
-            }],
-            categorias_respondibles=[{
-                "categoria": chat_activo["suggested_opener_type"],
-                "puntuacion": 1,
-                "confianza": "manual"
-            }]
-        )
-
-        chat_activo["estado_bot"]["ultimo_opener"] = chat_activo["suggested_opener_type"]
-        chat_activo["suggested_opener"] = ""
-        chat_activo["suggested_opener_type"] = ""
-        chat_activo["pending_opener_type"] = None
-        st.rerun()
-
-for i, mensaje in enumerate(db_chat_messages[-40:]):
-    with st.chat_message(mensaje["role"]):
-        st.markdown(mensaje["content"])
-
-        if mensaje["role"] == "assistant":
-            turn_number = mensaje.get("turn_number", 0)
-            session_part = chat_activo["db_session_id"] or "no_session"
-            unique_id = f"{session_part}_{turn_number}_{i}"
-
-            rating = st.radio(
-                "Rate this reply",
-                options=["Good", "Regular", "Bad"],
-                horizontal=True,
-                key=f"rating_{unique_id}"
-            )
-
-            comment = st.text_input(
-                "Optional comment",
-                key=f"comment_{unique_id}",
-                placeholder="What sounds good or wrong here?"
-            )
-
-            if st.button("Save feedback", key=f"save_{unique_id}"):
-                save_feedback(
-                    session_id=chat_activo["db_session_id"],
-                    turn_number=turn_number,
-                    rating=rating,
-                    comment=comment
+                rating = st.radio(
+                    "Rate this reply",
+                    options=["Good", "Regular", "Bad"],
+                    horizontal=True,
+                    key=f"rating_{unique_id}"
                 )
-                st.success("Feedback saved")
-                st.rerun()
 
-# Auto-refresh mientras el worker está trabajando
+                comment = st.text_input(
+                    "Optional comment",
+                    key=f"comment_{unique_id}",
+                    placeholder="What sounds good or wrong here?"
+                )
+
+                if st.button("Save feedback", key=f"save_{unique_id}"):
+                    try:
+                        save_feedback(
+                            session_id=session_id_activo,
+                            turn_number=turn_number,
+                            rating=rating,
+                            comment=comment
+                        )
+                        st.success("Feedback saved")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error saving feedback: {e}")
+
+
+# ----------------------------
+# Auto-refresh
+# ----------------------------
 if hay_pendiente or hay_opener_pendiente:
     time.sleep(2)
-    st.rerun()
-
-
-# ----------------------------
-# Chat input
-# ----------------------------
-texto_usuario = st.chat_input(
-    f"Write as {chat_activo['nombre']}..."
-)
-
-
-# ----------------------------
-# Processing
-# ----------------------------
-if texto_usuario and texto_usuario.strip():
-    asegurar_db_session(chat_activo)
-
-    chat_activo["turn_counter"] += 1
-    current_turn_number = chat_activo["turn_counter"]
-
-    create_chat_message(
-        session_id=chat_activo["db_session_id"],
-        turn_number=current_turn_number,
-        role="user",
-        content=texto_usuario,
-        status="pending_ai",
-        source="streamlit",
-        idioma="en",
-        categorias_detectadas=[],
-        categorias_respondibles=[]
-    )
-
     st.rerun()
