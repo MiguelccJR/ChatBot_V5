@@ -1,7 +1,9 @@
 {
   "ExpandedNodes": [
     "",
-    "\\.streamlit"
+    "\\.streamlit",
+    "\\pages"
   ],
+  "SelectedNode": "\\pages\\config_page.py",
   "PreviewInSolutionExplorer": false
 }
