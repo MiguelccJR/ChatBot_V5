@@ -1,4 +1,5 @@
-﻿import time
+﻿import hmac
+import time
 import streamlit as st
 
 from db import (
@@ -10,6 +11,7 @@ from db import (
     save_feedback,
     create_opener_request,
     get_latest_opener_request,
+    create_chat_message,
 )
 
 st.set_page_config(
@@ -43,17 +45,89 @@ SOURCE_LABELS = {
 SOURCE_AVATARS = {
     "telegram": "👤",
     "local_ai": "🤖",
-    "human": "🧑",
+    "human": "🐒❤️",
     "streamlit": "💻",
 }
 
 
 # ----------------------------
+# Auth helpers
+# ----------------------------
+def get_auth_users() -> dict:
+    """
+    Expected secrets.toml structure:
+
+    [auth.users.admin]
+    password = "TU_PASSWORD"
+    role = "admin"
+
+    [auth.users.operador]
+    password = "OTRA_PASSWORD"
+    role = "user"
+    """
+    try:
+        auth_cfg = st.secrets["auth"]
+        users_cfg = auth_cfg["users"]
+    except Exception:
+        return {}
+
+    users = {}
+    for username in users_cfg:
+        entry = users_cfg[username]
+        users[username] = {
+            "password": str(entry["password"]),
+            "role": str(entry.get("role", "user")),
+        }
+    return users
+
+
+AUTH_USERS = get_auth_users()
+
+
+def init_auth_state():
+    if "auth_username" not in st.session_state:
+        st.session_state.auth_username = None
+    if "auth_role" not in st.session_state:
+        st.session_state.auth_role = "user"
+    if "manual_reply_text" not in st.session_state:
+        st.session_state.manual_reply_text = ""
+
+
+init_auth_state()
+
+
+def is_admin() -> bool:
+    return st.session_state.get("auth_role") == "admin"
+
+
+def is_logged_in() -> bool:
+    return bool(st.session_state.get("auth_username"))
+
+
+def login(username: str, password: str) -> bool:
+    user = AUTH_USERS.get(username)
+    if not user:
+        return False
+    if not hmac.compare_digest(password, user["password"]):
+        return False
+
+    st.session_state.auth_username = username
+    st.session_state.auth_role = user.get("role", "user")
+    return True
+
+
+def logout():
+    st.session_state.auth_username = None
+    st.session_state.auth_role = "user"
+    st.rerun()
+
+
+# ----------------------------
 # Helpers
 # ----------------------------
-def cargar_sesiones():
+def cargar_sesiones(include_disabled: bool):
     try:
-        return get_telegram_sessions(include_disabled=True)
+        return get_telegram_sessions(include_disabled=include_disabled)
     except Exception as e:
         st.error(f"Error loading Telegram sessions: {e}")
         return []
@@ -100,7 +174,7 @@ def get_message_display_info(mensaje: dict) -> tuple[str, str, str]:
         return "user", "👤", "Cliente"
 
     if source == "human":
-        return "assistant", "🧑", "Tú"
+        return "assistant", "🐒", "Tú"
     if source == "local_ai":
         return "assistant", "🤖", "Bot"
     if source == "streamlit":
@@ -109,10 +183,82 @@ def get_message_display_info(mensaje: dict) -> tuple[str, str, str]:
     return "assistant", "💬", "Asistente"
 
 
+def get_next_turn_number(messages: list) -> int:
+    if not messages:
+        return 1
+    try:
+        return max((m.get("turn_number") or 0) for m in messages) + 1
+    except Exception:
+        return 1
+
+
+def get_last_user_message_id(messages: list) -> int | None:
+    for m in reversed(messages):
+        if m.get("role") == "user":
+            return m.get("id")
+    return None
+
+
+def queue_manual_reply(session_id: str, messages: list, text: str, control_mode: str):
+    text = (text or "").strip()
+    if not text:
+        raise ValueError("Reply text is empty")
+
+    if control_mode == "disabled":
+        raise ValueError("Cannot send manual reply while chat is disabled")
+
+    if control_mode == "bot":
+        set_session_control_mode(session_id, "human", "Manual reply from control panel")
+
+    create_chat_message(
+        session_id=session_id,
+        turn_number=get_next_turn_number(messages),
+        role="assistant",
+        content=text,
+        status="done",
+        source="human",
+        reply_to_message_id=get_last_user_message_id(messages),
+        idioma="en",
+        categorias_detectadas=[],
+        categorias_respondibles=[],
+    )
+
+
+# ----------------------------
+# Sidebar auth
+# ----------------------------
+with st.sidebar:
+    st.subheader("Access")
+
+    if is_logged_in():
+        st.success(f"Logged in as **{st.session_state.auth_username}** ({st.session_state.auth_role})")
+        if st.button("Logout", use_container_width=True):
+            logout()
+    else:
+        st.info("Normal mode active")
+        st.caption("Disabled chats stay hidden unless you log in as admin.")
+
+        if AUTH_USERS:
+            with st.expander("Admin login"):
+                with st.form("login_form", clear_on_submit=False):
+                    login_user = st.text_input("User")
+                    login_pass = st.text_input("Password", type="password")
+                    login_submit = st.form_submit_button("Login as admin", use_container_width=True)
+                    if login_submit:
+                        if login(login_user.strip(), login_pass):
+                            st.rerun()
+                        else:
+                            st.error("Invalid username or password")
+        else:
+            st.warning("Admin login is not configured. Check .streamlit/secrets.toml")
+
+    st.caption("Admin can see disabled chats. Normal user cannot.")
+
+
 # ----------------------------
 # Load sessions
 # ----------------------------
-sesiones = cargar_sesiones()
+sesiones = cargar_sesiones(include_disabled=is_admin())
 
 with st.sidebar:
     st.subheader("Telegram chats")
@@ -128,13 +274,18 @@ with st.sidebar:
         st.write(f"**Total:** {total}")
         st.write(f"**Bot:** {total_bot}")
         st.write(f"**Human:** {total_human}")
-        st.write(f"**Disabled:** {total_disabled}")
+        if is_admin():
+            st.write(f"**Disabled:** {total_disabled}")
 
         st.divider()
 
+        mode_options = ["all", "bot", "human"]
+        if is_admin():
+            mode_options.append("disabled")
+
         filtro_modo = st.selectbox(
             "Filter by mode",
-            options=["all", "bot", "human", "disabled"],
+            options=mode_options,
             index=0
         )
 
@@ -195,6 +346,10 @@ sesion = next((s for s in sesiones if s["id"] == session_id_activo), None)
 
 if not sesion:
     st.warning("No active Telegram chat selected.")
+    st.stop()
+
+if sesion.get("control_mode") == "disabled" and not is_admin():
+    st.error("You do not have permission to view disabled chats.")
     st.stop()
 
 display_name = get_session_display_name(sesion)
@@ -317,7 +472,8 @@ elif control_mode == "disabled":
 else:
     st.success("🤖 Bot mode active — AI can respond automatically.")
 
-if ultimo_pendiente:
+# Do not show waiting_human/reading/typing banner for disabled chats
+if ultimo_pendiente and control_mode != "disabled":
     estado = ultimo_pendiente["status"]
     if estado == "pending_ai":
         st.info("Reading...")
@@ -355,6 +511,7 @@ if latest_requested_opener:
     opener_status = latest_requested_opener.get("status")
     opener_type = latest_requested_opener.get("opener_type") or st.session_state.pending_opener_type
     opener_label = OPENER_LABELS.get(opener_type, "Opener")
+    opener_text = latest_requested_opener.get("suggestion_text", "")
 
     if opener_status == "pending":
         st.info(f"Generating {opener_label.lower()}...")
@@ -363,10 +520,67 @@ if latest_requested_opener:
     elif opener_status == "error":
         st.warning(f"{opener_label} error: {latest_requested_opener.get('error_text', 'unknown error')}")
         st.session_state.pending_opener_type = None
-    elif opener_status == "done" and latest_requested_opener.get("suggestion_text"):
-        st.success(latest_requested_opener["suggestion_text"])
-        st.caption("Copy and send manually if you want.")
-        st.session_state.pending_opener_type = None
+    elif opener_status == "done" and opener_text:
+        st.success(opener_text)
+
+        op_col1, op_col2 = st.columns(2)
+        with op_col1:
+            if st.button("Use opener in reply box", key=f"use_opener_{latest_requested_opener['id']}", use_container_width=True):
+                st.session_state.manual_reply_text = opener_text
+                st.success("Opener copied to manual reply box")
+                st.rerun()
+
+        with op_col2:
+            if st.button("Send opener now", key=f"send_opener_{latest_requested_opener['id']}", use_container_width=True):
+                try:
+                    queue_manual_reply(
+                        session_id=session_id_activo,
+                        messages=db_chat_messages,
+                        text=opener_text,
+                        control_mode=control_mode,
+                    )
+                    st.session_state.pending_opener_type = None
+                    st.session_state.manual_reply_text = ""
+                    st.success("Opener queued for Telegram")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error sending opener: {e}")
+
+
+# ----------------------------
+# Manual reply box
+# ----------------------------
+st.markdown("### Manual reply")
+
+if control_mode == "disabled":
+    st.caption("Disabled chats cannot send manual replies.")
+else:
+    if control_mode == "bot":
+        st.caption("Sending a manual reply will switch this chat to HUMAN mode automatically.")
+    else:
+        st.caption("Manual replies are sent as you and stored for future context.")
+
+    manual_text = st.text_area(
+        "Write a reply",
+        key="manual_reply_text",
+        height=120,
+        placeholder="Write here or use an opener above...",
+    )
+
+    if st.button("Send manual reply", use_container_width=True):
+        try:
+            queue_manual_reply(
+                session_id=session_id_activo,
+                messages=db_chat_messages,
+                text=manual_text,
+                control_mode=control_mode,
+            )
+            st.session_state.pending_opener_type = None
+            st.session_state.manual_reply_text = ""
+            st.success("Manual reply queued for Telegram")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error sending manual reply: {e}")
 
 
 # ----------------------------
@@ -399,7 +613,7 @@ else:
 
             st.caption(" | ".join(meta))
 
-            if role == "assistant":
+            if role == "assistant" and source == "local_ai":
                 unique_id = f"{session_id_activo}_{turn_number}_{i}"
 
                 rating = st.radio(
