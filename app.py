@@ -2,8 +2,6 @@
 import time
 import streamlit as st
 
-st.sidebar.error("ESTOY EN EL APP NUEVO")
-
 from db import (
     get_telegram_sessions,
     get_session_display_name,
@@ -85,13 +83,6 @@ def get_auth_users() -> dict:
 
 AUTH_USERS = get_auth_users()
 
-st.write("DEBUG secrets keys:", list(st.secrets.keys()))
-try:
-    st.write("DEBUG auth:", st.secrets["auth"])
-except Exception as e:
-    st.write("DEBUG auth error:", str(e))
-
-st.write("DEBUG AUTH_USERS:", AUTH_USERS)
 
 def init_auth_state():
     if "auth_username" not in st.session_state:
