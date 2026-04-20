@@ -33,6 +33,20 @@ MODE_ICONS = {
     "disabled": "🔴",
 }
 
+SOURCE_LABELS = {
+    "telegram": "Cliente",
+    "local_ai": "Bot",
+    "human": "Tú",
+    "streamlit": "Panel",
+}
+
+SOURCE_AVATARS = {
+    "telegram": "👤",
+    "local_ai": "🤖",
+    "human": "🧑",
+    "streamlit": "💻",
+}
+
 
 # ----------------------------
 # Helpers
@@ -76,6 +90,23 @@ def fmt_datetime(value: str | None) -> str:
     if not value:
         return "-"
     return value[:19].replace("T", " ")
+
+
+def get_message_display_info(mensaje: dict) -> tuple[str, str, str]:
+    role = mensaje.get("role", "assistant")
+    source = (mensaje.get("source") or "").strip()
+
+    if role == "user":
+        return "user", "👤", "Cliente"
+
+    if source == "human":
+        return "assistant", "🧑", "Tú"
+    if source == "local_ai":
+        return "assistant", "🤖", "Bot"
+    if source == "streamlit":
+        return "assistant", "💻", "Panel"
+
+    return "assistant", "💬", "Asistente"
 
 
 # ----------------------------
@@ -352,10 +383,13 @@ else:
         status = mensaje.get("status", "")
         turn_number = mensaje.get("turn_number", 0)
 
-        with st.chat_message(role):
+        chat_role, avatar, label = get_message_display_info(mensaje)
+
+        with st.chat_message(chat_role, avatar=avatar):
             st.markdown(mensaje["content"])
 
-            meta = []
+            meta = [label]
+
             if source:
                 meta.append(f"source={source}")
             if status:
