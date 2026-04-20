@@ -262,8 +262,10 @@ async def main():
             register_new_chat(chat_id, username, first_name)
             return
 
-        # Disabled — stop here, don't log or store anything
+        # Disabled — log for monitoring but don't store or process
         if session.get("control_mode", "disabled") == "disabled":
+            preview = repr(text[:80]) if text else "[media]"
+            print(f"[MONITOR] Disabled chat {chat_id}: {preview}")
             return
 
         print(f"[TELEGRAM] Incoming from {chat_id}: {repr(text[:60]) if text else '[media]'}")
