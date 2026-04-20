@@ -213,9 +213,9 @@ def get_pending_replies_to_send() -> list:
         .eq("role", "assistant")
         .eq("status", "done")
         .eq("sent_to_telegram", False)
-        .eq("source", "local_ai")
+        .in_("source", ["local_ai", "human", "streamlit"])
         .order("created_at")
-        .limit(10)
+        .limit(20)
         .execute()
     )
     return response.data or []
