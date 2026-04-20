@@ -2,6 +2,8 @@
 import time
 import streamlit as st
 
+st.sidebar.error("ESTOY EN EL APP NUEVO")
+
 from db import (
     get_telegram_sessions,
     get_session_display_name,
