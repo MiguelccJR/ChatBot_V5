@@ -252,7 +252,6 @@ with st.sidebar:
         else:
             st.warning("Admin login is not configured. Check .streamlit/secrets.toml")
 
-    st.caption("Admin can see disabled chats. Normal user cannot.")
 
 
 # ----------------------------
