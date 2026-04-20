@@ -68,8 +68,8 @@ def get_session_control_state(session_id: str) -> dict:
 def set_session_control_mode(session_id: str, control_mode: str, handoff_reason: str | None = None):
     supabase = get_supabase()
 
-    if control_mode not in ("bot", "human"):
-        raise ValueError("control_mode must be 'bot' or 'human'")
+    if control_mode not in ("bot", "human", "disabled"):
+        raise ValueError("control_mode must be 'bot', 'human' or 'disabled'")
 
     payload = {
         "control_mode": control_mode,
@@ -81,6 +81,7 @@ def set_session_control_mode(session_id: str, control_mode: str, handoff_reason:
     else:
         payload["handoff_reason"] = None
         payload["handoff_since"] = None
+        payload["control_mode"] = control_mode
 
     response = (
         supabase.table("test_sessions")
