@@ -4,6 +4,6 @@
     "\\.streamlit",
     "\\pages"
   ],
-  "SelectedNode": "\\pages\\telegram_chats_page.py",
+  "SelectedNode": "\\telegram_worker.py",
   "PreviewInSolutionExplorer": false
 }
