@@ -345,8 +345,14 @@ def delete_bot_config(key: str) -> bool:
 # Telegram session helpers
 # ============================================================
 
-def get_telegram_sessions(include_disabled: bool = True) -> list:
-    """Returns all Telegram sessions ordered by last activity."""
+def get_telegram_sessions(
+    include_disabled: bool = True,
+    include_archived: bool = False,
+) -> list:
+    """
+    Returns Telegram sessions ordered by last activity.
+    By default, archived chats are hidden.
+    """
     supabase = get_supabase()
     query = (
         supabase.table("test_sessions")
@@ -354,8 +360,13 @@ def get_telegram_sessions(include_disabled: bool = True) -> list:
         .eq("platform", "telegram")
         .order("last_activity_at", desc=True)
     )
+
     if not include_disabled:
         query = query.neq("control_mode", "disabled")
+
+    if not include_archived:
+        query = query.eq("is_archived", False)
+
     response = query.execute()
     return response.data or []
 
@@ -379,3 +390,57 @@ def get_session_display_name(session: dict) -> str:
     if chat_id:
         return f"ID {chat_id}"
     return "Unknown"
+
+def register_new_chat(
+    telegram_chat_id: str,
+    username: str = "",
+    first_name: str = "",
+    *,
+    is_archived: bool = False,
+    ) -> str:
+    """
+    Registers a new chat with control_mode = 'disabled'.
+    The bot will not respond until the owner activates it.
+    """
+    supabase = get_supabase()
+    response = (
+        supabase.table("test_sessions")
+        .insert({
+            "tester_name": username or first_name or f"tg_{telegram_chat_id}",
+            "platform": "telegram",
+            "control_mode": "disabled",
+            "telegram_chat_id": str(telegram_chat_id),
+            "telegram_username": username,
+            "telegram_first_name": first_name,
+            "active": True,
+            "is_archived": is_archived,
+        })
+        .execute()
+    )
+    print(
+        f"[TELEGRAM] New chat registered: {telegram_chat_id} "
+        f"({username or first_name}) — DISABLED | archived={is_archived}"
+    )
+    return response.data[0]["id"]
+
+def set_session_archived(telegram_chat_id: str, is_archived: bool):
+    supabase = get_supabase()
+    response = (
+        supabase.table("test_sessions")
+        .update({"is_archived": is_archived})
+        .eq("telegram_chat_id", str(telegram_chat_id))
+        .execute()
+    )
+    return response.data
+
+def get_archived_telegram_sessions() -> list:
+    supabase = get_supabase()
+    response = (
+        supabase.table("test_sessions")
+        .select("*")
+        .eq("platform", "telegram")
+        .eq("is_archived", True)
+        .order("last_activity_at", desc=True)
+        .execute()
+    )
+    return response.data or []

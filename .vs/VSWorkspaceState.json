@@ -1,9 +1,8 @@
 {
   "ExpandedNodes": [
     "",
-    "\\.streamlit",
     "\\pages"
   ],
-  "SelectedNode": "\\telegram_worker.py",
+  "SelectedNode": "\\.streamlit",
   "PreviewInSolutionExplorer": false
 }
