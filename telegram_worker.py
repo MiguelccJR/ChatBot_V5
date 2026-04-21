@@ -278,19 +278,19 @@ def update_history_import_request(request_id: int, status: str, error_text: str 
     return response.data
 
     def get_oldest_imported_telegram_message_id(session_id: str):
-    supabase = get_supabase()
-    response = (
-        supabase.table("chat_messages")
-        .select("telegram_message_id")
-        .eq("session_id", session_id)
-        .not_.is_("telegram_message_id", "null")
-        .order("telegram_message_id", desc=False)
-        .limit(1)
-        .execute()
-    )
-    if response.data:
-        return response.data[0].get("telegram_message_id")
-    return None
+        supabase = get_supabase()
+        response = (
+            supabase.table("chat_messages")
+            .select("telegram_message_id")
+            .eq("session_id", session_id)
+            .not_.is_("telegram_message_id", "null")
+            .order("telegram_message_id", desc=False)
+            .limit(1)
+            .execute()
+        )
+        if response.data:
+            return response.data[0].get("telegram_message_id")
+        return None
 
     def save_imported_message(
     session_id: str,
