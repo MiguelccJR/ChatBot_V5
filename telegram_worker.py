@@ -16,7 +16,6 @@ PHONE = os.getenv("TELEGRAM_PHONE", "")
 
 SESSION_FILE = "telegram_session"
 
-
 # ----------------------------
 # Whisper audio transcription
 # ----------------------------
@@ -94,7 +93,13 @@ def get_session_by_telegram_id(telegram_chat_id: str) -> dict | None:
     return response.data[0] if response.data else None
 
 
-def register_new_chat(telegram_chat_id: str, username: str = "", first_name: str = "") -> str:
+def register_new_chat(
+    telegram_chat_id: str,
+    username: str = "",
+    first_name: str = "",
+    *,
+    is_archived: bool = False,
+) -> str:
     """
     Registers a new chat with control_mode = 'disabled'.
     The bot will not respond until the owner activates it.
@@ -110,11 +115,26 @@ def register_new_chat(telegram_chat_id: str, username: str = "", first_name: str
             "telegram_username": username,
             "telegram_first_name": first_name,
             "active": True,
+            "is_archived": is_archived,
         })
         .execute()
     )
-    print(f"[TELEGRAM] New chat registered: {telegram_chat_id} ({username or first_name}) — DISABLED")
+    print(
+        f"[TELEGRAM] New chat registered: {telegram_chat_id} "
+        f"({username or first_name}) — DISABLED | archived={is_archived}"
+    )
     return response.data[0]["id"]
+
+
+def set_session_archived(telegram_chat_id: str, is_archived: bool):
+    supabase = get_supabase()
+    response = (
+        supabase.table("test_sessions")
+        .update({"is_archived": is_archived})
+        .eq("telegram_chat_id", str(telegram_chat_id))
+        .execute()
+    )
+    return response.data
 
 
 def save_incoming_message(
@@ -241,17 +261,63 @@ def get_owner_telegram_id() -> str | None:
     return response.data[0].get("value") if response.data else None
 
 
-async def send_bot_message(client: TelegramClient, chat_id: int, text: str, **kwargs):
-    """Send a message and remember its id so outgoing handler ignores it."""
-    msg = await client.send_message(chat_id, text, **kwargs)
-    BOT_SENT_MESSAGE_IDS.add(msg.id)
-    return msg
+# ----------------------------
+# Archived chats sync
+# ----------------------------
+async def sync_archived_private_chats(client):
+    """
+    Imports archived private chats into test_sessions.
+    For now, it only registers chat metadata.
+    It does NOT import old message history.
+    """
+    print("[SYNC] Starting archived private chats sync...")
+
+    total_found = 0
+    total_new = 0
+    total_updated = 0
+
+    try:
+        async for dialog in client.iter_dialogs(folder=1):
+            entity = dialog.entity
+
+            if not isinstance(entity, User):
+                continue
+
+            chat_id = str(entity.id)
+            username = getattr(entity, "username", "") or ""
+            first_name = getattr(entity, "first_name", "") or ""
+
+            total_found += 1
+
+            session = get_session_by_telegram_id(chat_id)
+            if not session:
+                register_new_chat(
+                    chat_id,
+                    username,
+                    first_name,
+                    is_archived=True,
+                )
+                total_new += 1
+                print(f"[SYNC] Archived chat registered: {chat_id} ({username or first_name})")
+            else:
+                current_archived = bool(session.get("is_archived", False))
+                if not current_archived:
+                    set_session_archived(chat_id, True)
+                    total_updated += 1
+                    print(f"[SYNC] Marked existing chat as archived: {chat_id}")
+
+        print(
+            f"[SYNC] Archived sync completed | found={total_found} "
+            f"new={total_new} updated={total_updated}"
+        )
+
+    except Exception as e:
+        print(f"[SYNC ERROR] Could not sync archived chats: {e}")
 
 
 # ----------------------------
 # Main
 # ----------------------------
-
 async def main():
     print(f"[TELEGRAM] Starting worker for {PHONE}")
 
@@ -261,6 +327,12 @@ async def main():
     me = await client.get_me()
     print(f"[TELEGRAM] Logged in as {me.first_name} (id={me.id})")
 
+    # Sync archived private chats at startup
+    await sync_archived_private_chats(client)
+
+    # ----------------------------
+    # Incoming messages from customers
+    # ----------------------------
     @client.on(events.NewMessage(incoming=True))
     async def handle_incoming(event):
         if not event.is_private:
@@ -276,61 +348,65 @@ async def main():
 
         session = get_session_by_telegram_id(chat_id)
 
-        # New chat — register and save first message for monitoring
+        # New chat — register as disabled, do nothing else
         if not session:
-            username = getattr(sender, 'username', '') or ''
-            first_name = getattr(sender, 'first_name', '') or ''
-            session_id = register_new_chat(chat_id, username, first_name)
-            preview = text if text else "[media received while disabled]"
-            turn_number = get_next_turn_number(session_id)
-            save_incoming_message(
-                session_id,
-                preview,
-                turn_number,
-                status="done",
-                error_text="ignored_disabled_chat",
-            )
+            username = getattr(sender, "username", "") or ""
+            first_name = getattr(sender, "first_name", "") or ""
+            register_new_chat(chat_id, username, first_name, is_archived=False)
             return
 
-        control_mode = session.get("control_mode", "disabled")
-        session_id = session["id"]
+        # If an archived chat writes again, optionally keep it archived.
+        # For now we do not change is_archived automatically.
 
-        # Disabled — save for monitoring but never process with AI
-        if control_mode == "disabled":
-            preview = text if text else "[media received while disabled]"
-            turn_number = get_next_turn_number(session_id)
-            save_incoming_message(
-                session_id,
-                preview,
-                turn_number,
-                status="done",
-                error_text="ignored_disabled_chat",
-            )
-            print(f"[MONITOR] Disabled chat {chat_id}: {repr(preview[:80])}")
+        # Disabled — save for monitoring but do not process with AI
+        if session.get("control_mode", "disabled") == "disabled":
+            preview = repr(text[:80]) if text else "[media]"
+            print(f"[MONITOR] Disabled chat {chat_id}: {preview}")
+
+            turn_number = get_next_turn_number(session["id"])
+
+            if has_media and not text:
+                save_incoming_message(
+                    session["id"],
+                    "[Disabled chat media message]",
+                    turn_number,
+                    status="waiting_human",
+                    error_text="Disabled chat monitored only",
+                )
+            else:
+                save_incoming_message(
+                    session["id"],
+                    text or "[Empty message]",
+                    turn_number,
+                    status="waiting_human",
+                    error_text="Disabled chat monitored only",
+                )
             return
 
         print(f"[TELEGRAM] Incoming from {chat_id}: {repr(text[:60]) if text else '[media]'}")
 
-        # Human mode — save message for history but do not process with AI
+        control_mode = session.get("control_mode", "disabled")
+        session_id = session["id"]
+
+        # Human mode — save message but don't process with AI
         if control_mode == "human":
             if text:
                 turn_number = get_next_turn_number(session_id)
-                save_incoming_message(session_id, text, turn_number, status="waiting_human")
-            else:
-                turn_number = get_next_turn_number(session_id)
                 save_incoming_message(
                     session_id,
-                    "[media waiting for human review]",
+                    text,
                     turn_number,
                     status="waiting_human",
+                    error_text="Waiting for human reply",
                 )
-            print(f"[TELEGRAM] Chat in HUMAN mode — saved as waiting_human")
+            print(f"[TELEGRAM] Chat in HUMAN mode — saved, not processing")
             return
 
         # Handle media messages
         if has_media and not text:
             msg_media = event.message.media
 
+            # --- Voice/audio message: transcribe with Whisper ---
             is_voice = hasattr(msg_media, 'document') and any(
                 getattr(attr, '__class__.__name__', '') in ('DocumentAttributeAudio',)
                 for attr in getattr(getattr(msg_media, 'document', None), 'attributes', [])
@@ -354,21 +430,20 @@ async def main():
                         return
                     else:
                         print(f"[TELEGRAM] Whisper returned empty — sending fallback")
-                        await send_bot_message(
-                            client,
+                        await client.send_message(
                             int(chat_id),
                             "Sorry, I couldn't hear that clearly 😅 Could you type it instead?"
                         )
                         return
                 except Exception as e:
                     print(f"[TELEGRAM] Audio processing error: {e}")
-                    await send_bot_message(
-                        client,
+                    await client.send_message(
                         int(chat_id),
                         "Sorry, I couldn't hear that clearly 😅 Could you type it instead?"
                     )
                     return
 
+            # --- Photo: try to send to vision AI ---
             is_photo = hasattr(msg_media, 'photo') or (
                 hasattr(msg_media, 'document') and
                 any('image' in str(getattr(attr, 'mime_type', ''))
@@ -382,37 +457,43 @@ async def main():
                     img_b64 = base64.b64encode(img_bytes).decode('utf-8')
 
                     turn_number = get_next_turn_number(session_id)
-                    image_text = f"[Image attached — base64 data available for vision model]"
+                    image_text = "[Image attached — base64 data available for vision model]"
                     save_incoming_message_with_image(session_id, image_text, turn_number, img_b64)
                     print(f"[TELEGRAM] Photo saved for vision processing | session={session_id}")
                     return
                 except Exception as e:
                     print(f"[TELEGRAM] Could not process photo: {e} — sending fallback")
 
+            # --- Fallback for unsupported media ---
             print(f"[TELEGRAM] Unsupported media from {chat_id} — sending friendly reply")
             delay = random.uniform(TYPING_DELAY_MIN, TYPING_DELAY_MAX)
             await asyncio.sleep(delay)
             async with client.action(int(chat_id), 'typing'):
                 await asyncio.sleep(1.5)
             response = random.choice(NON_TEXT_RESPONSES)
-            await send_bot_message(client, int(chat_id), response)
+            sent = await client.send_message(int(chat_id), response)
+            BOT_SENT_MESSAGE_IDS.add(int(sent.id))
             return
 
+        # Bot mode — save as pending_ai for local_worker
         if not text:
             return
 
         turn_number = get_next_turn_number(session_id)
-        save_incoming_message(session_id, text, turn_number, status="pending_ai")
+        save_incoming_message(session_id, text, turn_number)
         print(f"[TELEGRAM] Saved as pending_ai | session={session_id}")
 
+    # ----------------------------
+    # Outgoing messages (owner replies from phone)
+    # ----------------------------
     @client.on(events.NewMessage(outgoing=True))
     async def handle_outgoing(event):
         if not event.is_private:
             return
 
-        # Ignore messages sent by the worker itself
-        if event.id in BOT_SENT_MESSAGE_IDS:
-            BOT_SENT_MESSAGE_IDS.discard(event.id)
+        # Ignore messages sent by this worker itself
+        if int(event.message.id) in BOT_SENT_MESSAGE_IDS:
+            BOT_SENT_MESSAGE_IDS.discard(int(event.message.id))
             return
 
         chat_id = str(event.chat_id)
@@ -428,13 +509,18 @@ async def main():
         session_id = session["id"]
         control_mode = session.get("control_mode", "disabled")
 
+        # If bot was active and owner replied manually — switch to human mode
         if control_mode == "bot":
             set_human_mode(session_id, "Owner replied manually from Telegram")
             print(f"[TELEGRAM] Owner replied — session {session_id} → HUMAN mode")
 
+        # Save manual reply to history
         turn_number = get_next_turn_number(session_id)
         save_manual_reply(session_id, text, turn_number)
 
+    # ----------------------------
+    # Poll: send pending AI/manual replies
+    # ----------------------------
     async def send_pending_replies():
         while True:
             try:
@@ -448,7 +534,10 @@ async def main():
                         mark_message_sent(msg["id"])
                         continue
 
-                    if control_mode in ("human", "disabled"):
+                    # Don't send if session switched to human or disabled,
+                    # unless the message source is human/streamlit and you want manual sends.
+                    source = msg.get("source", "")
+                    if control_mode in ("human", "disabled") and source == "local_ai":
                         mark_message_sent(msg["id"])
                         continue
 
@@ -457,7 +546,9 @@ async def main():
                         await asyncio.sleep(delay)
                         async with client.action(int(telegram_chat_id), 'typing'):
                             await asyncio.sleep(random.uniform(1.0, 2.0))
-                        await send_bot_message(client, int(telegram_chat_id), msg["content"])
+
+                        sent = await client.send_message(int(telegram_chat_id), msg["content"])
+                        BOT_SENT_MESSAGE_IDS.add(int(sent.id))
                         mark_message_sent(msg["id"])
                         print(f"[TELEGRAM] Sent to {telegram_chat_id}: {repr(msg['content'][:50])}")
 
@@ -513,7 +604,7 @@ async def main():
         )
 
         try:
-            await send_bot_message(client, int(owner_id), notification, parse_mode="markdown")
+            await client.send_message(int(owner_id), notification, parse_mode="markdown")
             print(f"[TELEGRAM] Handoff notification sent to owner")
         except Exception as e:
             print(f"[TELEGRAM] Could not notify owner: {e}")
