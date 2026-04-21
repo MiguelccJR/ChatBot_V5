@@ -200,6 +200,36 @@ def save_incoming_message_with_image(
     }).execute()
 
 
+def save_incoming_media_message(
+    session_id: str,
+    text: str,
+    turn_number: int,
+    media_type: str,
+    media_url: str,
+    mime_type: str,
+    *,
+    status: str = "pending_ai",
+    error_text: str | None = None,
+):
+    """Saves a message with media (image, audio, video, sticker) stored in Supabase Storage."""
+    supabase = get_supabase()
+    supabase.table("chat_messages").insert({
+        "session_id": session_id,
+        "turn_number": turn_number,
+        "role": "user",
+        "content": text,
+        "status": status,
+        "source": "telegram",
+        "idioma": "en",
+        "categorias_detectadas": [],
+        "categorias_respondibles": [],
+        "error_text": error_text,
+        "media_type": media_type,
+        "media_url": media_url,
+        "mime_type": mime_type,
+    }).execute()
+
+
 def save_manual_reply(session_id: str, text: str, turn_number: int):
     supabase = get_supabase()
     supabase.table("chat_messages").insert({
