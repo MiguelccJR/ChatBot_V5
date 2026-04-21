@@ -2,6 +2,7 @@
 import time
 import streamlit as st
 
+from auth import init_auth, is_logged_in, is_admin, login, logout, render_sidebar_auth
 from db import (
     get_telegram_sessions,
     get_session_display_name,
@@ -14,14 +15,11 @@ from db import (
     create_chat_message,
 )
 
-st.set_page_config(
-    page_title="Telegram Control Panel",
-    layout="wide"
-)
+st.set_page_config(page_title="Telegram Control Panel", layout="wide")
+init_auth()
 
 st.title("Telegram Control Panel")
 st.caption("Viewer and control panel for real Telegram chats")
-
 
 OPENER_LABELS = {
     "soft": "Soft opener",
@@ -35,102 +33,10 @@ MODE_ICONS = {
     "disabled": "🔴",
 }
 
-SOURCE_LABELS = {
-    "telegram": "Cliente",
-    "local_ai": "Bot",
-    "human": "Tú",
-    "streamlit": "Panel",
-}
 
-SOURCE_AVATARS = {
-    "telegram": "👤",
-    "local_ai": "🤖",
-    "human": "🐒❤️",
-    "streamlit": "💻",
-}
-
-
-# ----------------------------
-# Auth helpers
-# ----------------------------
-def get_auth_users() -> dict:
-    """
-    Expected secrets.toml structure:
-
-    [auth.users.admin]
-    password = "TU_PASSWORD"
-    role = "admin"
-
-    [auth.users.operador]
-    password = "OTRA_PASSWORD"
-    role = "user"
-    """
-    try:
-        auth_cfg = st.secrets["auth"]
-        users_cfg = auth_cfg["users"]
-    except Exception:
-        return {}
-
-    users = {}
-    for username in users_cfg:
-        entry = users_cfg[username]
-        users[username] = {
-            "password": str(entry["password"]),
-            "role": str(entry.get("role", "user")),
-        }
-    return users
-
-
-AUTH_USERS = get_auth_users()
-
-
-def init_auth_state():
-    if "auth_username" not in st.session_state:
-        st.session_state.auth_username = None
-    if "auth_role" not in st.session_state:
-        st.session_state.auth_role = "user"
-    if "manual_reply_text" not in st.session_state:
-        st.session_state.manual_reply_text = ""
-
-
-init_auth_state()
-
-
-def is_admin() -> bool:
-    return st.session_state.get("auth_role") == "admin"
-
-
-def is_logged_in() -> bool:
-    return bool(st.session_state.get("auth_username"))
-
-
-def login(username: str, password: str) -> bool:
-    user = AUTH_USERS.get(username)
-    if not user:
-        return False
-    if not hmac.compare_digest(password, user["password"]):
-        return False
-
-    st.session_state.auth_username = username
-    st.session_state.auth_role = user.get("role", "user")
-    return True
-
-
-def logout():
-    st.session_state.auth_username = None
-    st.session_state.auth_role = "user"
-    st.rerun()
-
-
-# ----------------------------
-# Helpers
-# ----------------------------
 def cargar_sesiones(include_disabled: bool):
     try:
-        return get_telegram_sessions(
-            include_disabled=include_disabled,
-            include_archived=False,
-        )
+        return get_telegram_sessions(include_disabled=include_disabled)
     except Exception as e:
         st.error(f"Error loading Telegram sessions: {e}")
         return []
@@ -139,23 +45,18 @@ def cargar_sesiones(include_disabled: bool):
 def obtener_session_id_activo(sesiones):
     if "session_id_activo" not in st.session_state:
         st.session_state.session_id_activo = None
-
     ids = [s["id"] for s in sesiones]
-
     if not ids:
         st.session_state.session_id_activo = None
         return None
-
     if st.session_state.session_id_activo not in ids:
         st.session_state.session_id_activo = ids[0]
-
     return st.session_state.session_id_activo
 
 
 def procesar_estado_opener(session_id: str, opener_type: str | None):
     if not session_id or not opener_type:
         return None
-
     try:
         return get_latest_opener_request(session_id, opener_type)
     except Exception as e:
@@ -172,17 +73,14 @@ def fmt_datetime(value: str | None) -> str:
 def get_message_display_info(mensaje: dict) -> tuple[str, str, str]:
     role = mensaje.get("role", "assistant")
     source = (mensaje.get("source") or "").strip()
-
     if role == "user":
         return "user", "👤", "Cliente"
-
     if source == "human":
         return "assistant", "🐒", "Tú"
     if source == "local_ai":
         return "assistant", "🤖", "Bot"
     if source == "streamlit":
         return "assistant", "💻", "Panel"
-
     return "assistant", "💬", "Asistente"
 
 
@@ -206,13 +104,10 @@ def queue_manual_reply(session_id: str, messages: list, text: str, control_mode:
     text = (text or "").strip()
     if not text:
         raise ValueError("Reply text is empty")
-
     if control_mode == "disabled":
         raise ValueError("Cannot send manual reply while chat is disabled")
-
     if control_mode == "bot":
         set_session_control_mode(session_id, "human", "Manual reply from control panel")
-
     create_chat_message(
         session_id=session_id,
         turn_number=get_next_turn_number(messages),
@@ -227,39 +122,10 @@ def queue_manual_reply(session_id: str, messages: list, text: str, control_mode:
     )
 
 
-# ----------------------------
 # Sidebar auth
-# ----------------------------
-with st.sidebar:
-    st.subheader("Access")
+render_sidebar_auth()
 
-    if is_logged_in():
-        st.success(f"Logged in as **{st.session_state.auth_username}** ({st.session_state.auth_role})")
-        if st.button("Logout", use_container_width=True):
-            logout()
-    else:
-        st.info("Normal mode active")
-        st.caption("Disabled chats stay hidden unless you log in as admin.")
-
-        if AUTH_USERS:
-            with st.expander("Admin login"):
-                with st.form("login_form", clear_on_submit=False):
-                    login_user = st.text_input("User")
-                    login_pass = st.text_input("Password", type="password")
-                    login_submit = st.form_submit_button("Login as admin", use_container_width=True)
-                    if login_submit:
-                        if login(login_user.strip(), login_pass):
-                            st.rerun()
-                        else:
-                            st.error("Invalid username or password")
-        else:
-            st.warning("Admin login is not configured. Check .streamlit/secrets.toml")
-
-
-
-# ----------------------------
 # Load sessions
-# ----------------------------
 sesiones = cargar_sesiones(include_disabled=is_admin())
 
 with st.sidebar:
@@ -285,12 +151,7 @@ with st.sidebar:
         if is_admin():
             mode_options.append("disabled")
 
-        filtro_modo = st.selectbox(
-            "Filter by mode",
-            options=mode_options,
-            index=0
-        )
-
+        filtro_modo = st.selectbox("Filter by mode", options=mode_options, index=0)
         busqueda = st.text_input("Search", placeholder="username, name, chat id...").strip().lower()
 
         sesiones_filtradas = sesiones
@@ -315,10 +176,8 @@ with st.sidebar:
             st.warning("No chats match the current filter.")
         else:
             session_id_activo = obtener_session_id_activo(sesiones_filtradas)
-
             opciones = [s["id"] for s in sesiones_filtradas]
             mapa_labels = {}
-
             for s in sesiones_filtradas:
                 mode = s.get("control_mode", "disabled")
                 icon = MODE_ICONS.get(mode, "⚪")
@@ -338,7 +197,6 @@ with st.sidebar:
 
         if st.button("Refresh panel", use_container_width=True):
             st.rerun()
-
 
 if not sesiones:
     st.stop()
@@ -381,29 +239,17 @@ mensajes_pendientes = [
     m for m in db_chat_messages
     if m["role"] == "user" and m["status"] in ("pending_ai", "processing", "waiting_human")
 ]
-
 hay_pendiente = len(mensajes_pendientes) > 0
 ultimo_pendiente = mensajes_pendientes[-1] if hay_pendiente else None
 
-# opener state
 if "pending_opener_type" not in st.session_state:
     st.session_state.pending_opener_type = None
 
-latest_requested_opener = procesar_estado_opener(
-    session_id_activo,
-    st.session_state.pending_opener_type
-)
-hay_opener_pendiente = False
+latest_requested_opener = procesar_estado_opener(session_id_activo, st.session_state.pending_opener_type)
+hay_opener_pendiente = bool(latest_requested_opener and latest_requested_opener.get("status") in ("pending", "processing"))
 
-if latest_requested_opener:
-    hay_opener_pendiente = latest_requested_opener.get("status") in ("pending", "processing")
-
-
-# ----------------------------
 # Header
-# ----------------------------
 st.subheader(f"{display_name}")
-
 col_meta1, col_meta2, col_meta3, col_meta4 = st.columns(4)
 with col_meta1:
     st.write(f"**Mode:** {MODE_ICONS.get(control_mode, '⚪')} {control_mode.upper()}")
@@ -423,12 +269,8 @@ with st.expander("Chat details", expanded=False):
     if handoff_since:
         st.write(f"**Handoff since:** {fmt_datetime(handoff_since)}")
 
-
-# ----------------------------
 # Control buttons
-# ----------------------------
 col_ctrl1, col_ctrl2, col_ctrl3 = st.columns(3)
-
 with col_ctrl1:
     if control_mode != "bot":
         if st.button("🟢 Set BOT mode", use_container_width=True):
@@ -438,7 +280,6 @@ with col_ctrl1:
                 st.rerun()
             except Exception as e:
                 st.error(f"Error switching to bot mode: {e}")
-
 with col_ctrl2:
     if control_mode != "human":
         if st.button("🟡 Set HUMAN mode", use_container_width=True):
@@ -448,7 +289,6 @@ with col_ctrl2:
                 st.rerun()
             except Exception as e:
                 st.error(f"Error switching to human mode: {e}")
-
 with col_ctrl3:
     if control_mode != "disabled":
         if st.button("🔴 Set DISABLED mode", use_container_width=True):
@@ -459,10 +299,7 @@ with col_ctrl3:
             except Exception as e:
                 st.error(f"Error switching to disabled mode: {e}")
 
-
-# ----------------------------
 # Status banners
-# ----------------------------
 if control_mode == "human":
     st.warning(
         "🤚 Human mode active — the bot is paused for this chat."
@@ -474,7 +311,6 @@ elif control_mode == "disabled":
 else:
     st.success("🤖 Bot mode active — AI can respond automatically.")
 
-# Do not show waiting_human/reading/typing banner for disabled chats
 if ultimo_pendiente and control_mode != "disabled":
     estado = ultimo_pendiente["status"]
     if estado == "pending_ai":
@@ -484,12 +320,8 @@ if ultimo_pendiente and control_mode != "disabled":
     elif estado == "waiting_human":
         st.info("Waiting for human reply...")
 
-
-# ----------------------------
-# Suggested openers
-# ----------------------------
+# Openers
 st.markdown("### Suggested openers")
-
 col1, col2 = st.columns(2)
 with col1:
     if st.button("Soft opener", use_container_width=True):
@@ -499,7 +331,6 @@ with col1:
             st.rerun()
         except Exception as e:
             st.error(f"Error requesting opener: {e}")
-
 with col2:
     if st.button("Flirty opener", use_container_width=True):
         try:
@@ -524,23 +355,15 @@ if latest_requested_opener:
         st.session_state.pending_opener_type = None
     elif opener_status == "done" and opener_text:
         st.success(opener_text)
-
         op_col1, op_col2 = st.columns(2)
         with op_col1:
             if st.button("Use opener in reply box", key=f"use_opener_{latest_requested_opener['id']}", use_container_width=True):
                 st.session_state.manual_reply_text = opener_text
-                st.success("Opener copied to manual reply box")
                 st.rerun()
-
         with op_col2:
             if st.button("Send opener now", key=f"send_opener_{latest_requested_opener['id']}", use_container_width=True):
                 try:
-                    queue_manual_reply(
-                        session_id=session_id_activo,
-                        messages=db_chat_messages,
-                        text=opener_text,
-                        control_mode=control_mode,
-                    )
+                    queue_manual_reply(session_id_activo, db_chat_messages, opener_text, control_mode)
                     st.session_state.pending_opener_type = None
                     st.session_state.manual_reply_text = ""
                     st.success("Opener queued for Telegram")
@@ -548,12 +371,8 @@ if latest_requested_opener:
                 except Exception as e:
                     st.error(f"Error sending opener: {e}")
 
-
-# ----------------------------
-# Manual reply box
-# ----------------------------
+# Manual reply
 st.markdown("### Manual reply")
-
 if control_mode == "disabled":
     st.caption("Disabled chats cannot send manual replies.")
 else:
@@ -561,6 +380,9 @@ else:
         st.caption("Sending a manual reply will switch this chat to HUMAN mode automatically.")
     else:
         st.caption("Manual replies are sent as you and stored for future context.")
+
+    if "manual_reply_text" not in st.session_state:
+        st.session_state.manual_reply_text = ""
 
     manual_text = st.text_area(
         "Write a reply",
@@ -571,12 +393,7 @@ else:
 
     if st.button("Send manual reply", use_container_width=True):
         try:
-            queue_manual_reply(
-                session_id=session_id_activo,
-                messages=db_chat_messages,
-                text=manual_text,
-                control_mode=control_mode,
-            )
+            queue_manual_reply(session_id_activo, db_chat_messages, manual_text, control_mode)
             st.session_state.pending_opener_type = None
             st.session_state.manual_reply_text = ""
             st.success("Manual reply queued for Telegram")
@@ -584,12 +401,8 @@ else:
         except Exception as e:
             st.error(f"Error sending manual reply: {e}")
 
-
-# ----------------------------
 # Chat history
-# ----------------------------
 st.markdown("### Chat history")
-
 if not db_chat_messages:
     st.info("No messages yet for this chat.")
 else:
@@ -598,56 +411,32 @@ else:
         source = mensaje.get("source", "")
         status = mensaje.get("status", "")
         turn_number = mensaje.get("turn_number", 0)
-
         chat_role, avatar, label = get_message_display_info(mensaje)
 
         with st.chat_message(chat_role, avatar=avatar):
             st.markdown(mensaje["content"])
-
             meta = [label]
-
             if source:
                 meta.append(f"source={source}")
             if status:
                 meta.append(f"status={status}")
             if turn_number is not None:
                 meta.append(f"turn={turn_number}")
-
             st.caption(" | ".join(meta))
 
             if role == "assistant" and source == "local_ai":
                 unique_id = f"{session_id_activo}_{turn_number}_{i}"
-
-                rating = st.radio(
-                    "Rate this reply",
-                    options=["Good", "Regular", "Bad"],
-                    horizontal=True,
-                    key=f"rating_{unique_id}"
-                )
-
-                comment = st.text_input(
-                    "Optional comment",
-                    key=f"comment_{unique_id}",
-                    placeholder="What sounds good or wrong here?"
-                )
-
+                rating = st.radio("Rate this reply", options=["Good", "Regular", "Bad"], horizontal=True, key=f"rating_{unique_id}")
+                comment = st.text_input("Optional comment", key=f"comment_{unique_id}", placeholder="What sounds good or wrong here?")
                 if st.button("Save feedback", key=f"save_{unique_id}"):
                     try:
-                        save_feedback(
-                            session_id=session_id_activo,
-                            turn_number=turn_number,
-                            rating=rating,
-                            comment=comment
-                        )
+                        save_feedback(session_id=session_id_activo, turn_number=turn_number, rating=rating, comment=comment)
                         st.success("Feedback saved")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error saving feedback: {e}")
 
-
-# ----------------------------
 # Auto-refresh
-# ----------------------------
 if hay_pendiente or hay_opener_pendiente:
     time.sleep(2)
     st.rerun()

@@ -345,14 +345,8 @@ def delete_bot_config(key: str) -> bool:
 # Telegram session helpers
 # ============================================================
 
-def get_telegram_sessions(
-    include_disabled: bool = True,
-    include_archived: bool = False,
-) -> list:
-    """
-    Returns Telegram sessions ordered by last activity.
-    By default, archived chats are hidden.
-    """
+def get_telegram_sessions(include_disabled: bool = True) -> list:
+    """Returns all Telegram sessions ordered by last activity."""
     supabase = get_supabase()
     query = (
         supabase.table("test_sessions")
@@ -360,29 +354,8 @@ def get_telegram_sessions(
         .eq("platform", "telegram")
         .order("last_activity_at", desc=True)
     )
-
     if not include_disabled:
         query = query.neq("control_mode", "disabled")
-
-    if not include_archived:
-        query = query.eq("is_archived", False)
-
-    response = query.execute()
-    return response.data or []
-
-def get_archived_telegram_sessions(include_disabled: bool = True) -> list:
-    supabase = get_supabase()
-    query = (
-        supabase.table("test_sessions")
-        .select("*")
-        .eq("platform", "telegram")
-        .eq("is_archived", True)
-        .order("last_activity_at", desc=True)
-    )
-
-    if not include_disabled:
-        query = query.neq("control_mode", "disabled")
-
     response = query.execute()
     return response.data or []
 
