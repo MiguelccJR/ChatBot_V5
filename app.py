@@ -331,6 +331,13 @@ with st.sidebar:
 
             if elegido != st.session_state.session_id_activo:
                 st.session_state.session_id_activo = elegido
+                # Reset all chat-specific state when switching chats
+                st.session_state.pending_opener_type = None
+                st.session_state.manual_reply_text = ""
+                # Clear history limit for previous chat
+                for key in list(st.session_state.keys()):
+                    if key.startswith("history_limit_") or key.startswith("rating_") or key.startswith("comment_"):
+                        del st.session_state[key]
                 st.rerun()
 
         if st.button("Refresh panel", use_container_width=True):
@@ -583,86 +590,51 @@ else:
 
 
 # ----------------------------
-# Chat history (most recent first)
+# Chat history
 # ----------------------------
 st.markdown("### Chat history")
-st.caption("Most recent messages at the top")
 
 if not db_chat_messages:
     st.info("No messages yet for this chat.")
 else:
-    # Show most recent 100 messages, reversed so newest is at top
-    mensajes_mostrar = list(reversed(db_chat_messages[-100:]))
-
-    for i, mensaje in enumerate(mensajes_mostrar):
+    for i, mensaje in enumerate(db_chat_messages[-100:]):
         role = mensaje["role"]
         source = mensaje.get("source", "")
         status = mensaje.get("status", "")
         turn_number = mensaje.get("turn_number", 0)
-        media_type = mensaje.get("media_type") or ""
-        media_url = mensaje.get("media_url") or ""
-        mime_type = mensaje.get("mime_type") or ""
-        message_id = mensaje.get("id", f"{turn_number}_{i}")
 
         chat_role, avatar, label = get_message_display_info(mensaje)
 
         with st.chat_message(chat_role, avatar=avatar):
-            # Show media if available
-            if media_type and media_url:
-                if media_type in ("image", "sticker"):
-                    try:
-                        st.image(media_url)
-                    except Exception:
-                        st.caption(f"📷 Image: {media_url}")
-                elif media_type == "audio":
-                    try:
-                        st.audio(media_url)
-                    except Exception:
-                        st.caption(f"🎵 Audio: {media_url}")
-                elif media_type == "video":
-                    try:
-                        st.video(media_url)
-                    except Exception:
-                        st.caption(f"🎬 Video: {media_url}")
-
-            # Show text content (skip if it's just a media placeholder)
-            text_content = mensaje["content"]
-            placeholders = [
-                "[Video received while disabled]",
-                "[Photo received while disabled]",
-                "[Sticker received while disabled]",
-                "[Voice message received while disabled]",
-                "[Customer sent a photo]",
-                "[Customer sent a sticker]",
-                "[Media received while disabled]",
-                "[Media received while disabled — upload failed]",
-            ]
-            if not (media_type and any(text_content.strip() in p or p in text_content.strip() for p in placeholders)):
-                st.markdown(text_content)
+            st.markdown(mensaje["content"])
 
             meta = [label]
-            created_at = fmt_datetime(mensaje.get("created_at"))
-            if created_at != "-":
-                meta.append(created_at)
+
+            if source:
+                meta.append(f"source={source}")
             if status:
                 meta.append(f"status={status}")
             if turn_number is not None:
                 meta.append(f"turn={turn_number}")
+
             st.caption(" | ".join(meta))
 
             if role == "assistant" and source == "local_ai":
-                unique_id = f"{session_id_activo}_{message_id}"
+                unique_id = f"{session_id_activo}_{turn_number}_{i}"
+
                 rating = st.radio(
                     "Rate this reply",
                     options=["Good", "Regular", "Bad"],
                     horizontal=True,
                     key=f"rating_{unique_id}"
                 )
+
                 comment = st.text_input(
                     "Optional comment",
                     key=f"comment_{unique_id}",
                     placeholder="What sounds good or wrong here?"
                 )
+
                 if st.button("Save feedback", key=f"save_{unique_id}"):
                     try:
                         save_feedback(
