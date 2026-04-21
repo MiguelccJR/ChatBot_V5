@@ -638,6 +638,43 @@ async def main():
         await client.disconnect()
         print("[TELEGRAM] Disconnected cleanly.")
 
+async def import_older_messages_for_session(client, session_id: str, telegram_chat_id: str, count_to_import: int):
+    entity = await client.get_entity(int(telegram_chat_id))
+
+    oldest_known_id = get_oldest_imported_telegram_message_id(session_id)
+
+    collected = []
+
+    if oldest_known_id:
+        async for msg in client.iter_messages(entity, limit=count_to_import, max_id=int(oldest_known_id)):
+            collected.append(msg)
+    else:
+        async for msg in client.iter_messages(entity, limit=count_to_import):
+            collected.append(msg)
+
+    collected.reverse()
+
+    inserted = 0
+    for msg in collected:
+        text = (msg.message or "").strip()
+        if not text:
+            continue
+
+        turn_number = get_next_turn_number(session_id)
+        role = "assistant" if msg.out else "user"
+
+        ok = save_imported_message(
+            session_id=session_id,
+            telegram_message_id=int(msg.id),
+            role=role,
+            content=text,
+            turn_number=turn_number,
+        )
+        if ok:
+            inserted += 1
+
+    return inserted
+
 async def process_history_import_requests(client):
     while True:
         try:
