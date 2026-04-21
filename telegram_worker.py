@@ -2,6 +2,7 @@
 import asyncio
 import random
 import base64
+import time as time_module
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
@@ -63,9 +64,17 @@ TYPING_DELAY_MIN = 2
 TYPING_DELAY_MAX = 5
 POLL_SEND_SECONDS = 2.0
 
-# Keeps track of messages sent by THIS worker so outgoing handler
-# does not treat them as manual owner replies.
-BOT_SENT_MESSAGE_IDS: set[int] = set()
+# Tracks messages sent by this worker (id -> timestamp) to avoid treating
+# them as manual owner replies. Cleaned up every 5 minutes.
+BOT_SENT_MESSAGE_IDS: dict[int, float] = {}
+BOT_SENT_CLEANUP_SECONDS = 300
+
+def cleanup_bot_sent_ids():
+    now = time_module.time()
+    cutoff = now - BOT_SENT_CLEANUP_SECONDS
+    to_remove = [mid for mid, ts in BOT_SENT_MESSAGE_IDS.items() if ts < cutoff]
+    for mid in to_remove:
+        del BOT_SENT_MESSAGE_IDS[mid]
 
 
 def get_supabase():
@@ -531,7 +540,7 @@ async def main():
                 await asyncio.sleep(1.5)
             response = random.choice(NON_TEXT_RESPONSES)
             sent = await client.send_message(int(chat_id), response)
-            BOT_SENT_MESSAGE_IDS.add(int(sent.id))
+            BOT_SENT_MESSAGE_IDS[int(sent.id)] = time_module.time(); cleanup_bot_sent_ids()
             return
 
         # Bot mode — save as pending_ai for local_worker
@@ -552,7 +561,7 @@ async def main():
 
         # Ignore messages sent by this worker itself
         if int(event.message.id) in BOT_SENT_MESSAGE_IDS:
-            BOT_SENT_MESSAGE_IDS.discard(int(event.message.id))
+            BOT_SENT_MESSAGE_IDS.pop(int(event.message.id), None)
             return
 
         chat_id = str(event.chat_id)
@@ -607,7 +616,7 @@ async def main():
                             await asyncio.sleep(random.uniform(1.0, 2.0))
 
                         sent = await client.send_message(int(telegram_chat_id), msg["content"])
-                        BOT_SENT_MESSAGE_IDS.add(int(sent.id))
+                        BOT_SENT_MESSAGE_IDS[int(sent.id)] = time_module.time(); cleanup_bot_sent_ids()
                         mark_message_sent(msg["id"])
                         print(f"[TELEGRAM] Sent to {telegram_chat_id}: {repr(msg['content'][:50])}")
 

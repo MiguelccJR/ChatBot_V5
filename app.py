@@ -127,7 +127,10 @@ def logout():
 # ----------------------------
 def cargar_sesiones(include_disabled: bool):
     try:
-        return get_telegram_sessions(include_disabled=include_disabled)
+        return get_telegram_sessions(
+            include_disabled=include_disabled,
+            include_archived=False,
+        )
     except Exception as e:
         st.error(f"Error loading Telegram sessions: {e}")
         return []
