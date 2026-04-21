@@ -6,13 +6,10 @@ from db import (
 )
 
 st.set_page_config(page_title="Archived Telegram Chats", layout="wide")
-st.title("Archived Telegram Chats")
-st.caption("Admin-only view for archived Telegram chats")
+st.title("📦 Archived Telegram Chats")
+st.caption("Admin-only view")
 
 
-# ----------------------------
-# Auth helpers
-# ----------------------------
 def get_auth_users():
     try:
         auth_section = st.secrets["auth"]
@@ -76,9 +73,6 @@ def get_message_display_info(mensaje: dict):
     return "assistant", "💬", "Asistente"
 
 
-# ----------------------------
-# Sidebar login
-# ----------------------------
 with st.sidebar:
     st.subheader("Access")
 
@@ -87,8 +81,7 @@ with st.sidebar:
         if st.button("Logout", use_container_width=True):
             logout()
     else:
-        st.info("Normal mode active")
-        with st.expander("Admin login"):
+        with st.expander("Admin login", expanded=True):
             with st.form("login_form", clear_on_submit=False):
                 login_user = st.text_input("User")
                 login_pass = st.text_input("Password", type="password")
@@ -100,17 +93,12 @@ with st.sidebar:
                     else:
                         st.error("Invalid username or password")
 
-
 if not is_admin():
     st.warning("This page is only visible to admin.")
     st.stop()
 
-
-# ----------------------------
-# Load archived sessions
-# ----------------------------
 try:
-    sesiones = get_archived_telegram_sessions()
+    sesiones = get_archived_telegram_sessions(include_disabled=True)
 except Exception as e:
     st.error(f"Error loading archived chats: {e}")
     st.stop()
@@ -145,9 +133,6 @@ with st.sidebar:
 
     if elegido != st.session_state.archived_session_id_activo:
         st.session_state.archived_session_id_activo = elegido
-        st.rerun()
-
-    if st.button("Refresh archived page", use_container_width=True):
         st.rerun()
 
 session_id_activo = st.session_state.archived_session_id_activo

@@ -370,16 +370,20 @@ def get_telegram_sessions(
     response = query.execute()
     return response.data or []
 
-def get_archived_telegram_sessions() -> list:
+def get_archived_telegram_sessions(include_disabled: bool = True) -> list:
     supabase = get_supabase()
-    response = (
+    query = (
         supabase.table("test_sessions")
         .select("*")
         .eq("platform", "telegram")
         .eq("is_archived", True)
         .order("last_activity_at", desc=True)
-        .execute()
     )
+
+    if not include_disabled:
+        query = query.neq("control_mode", "disabled")
+
+    response = query.execute()
     return response.data or []
 
 def get_session_display_name(session: dict) -> str:

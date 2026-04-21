@@ -264,12 +264,63 @@ def get_owner_telegram_id() -> str | None:
 # ----------------------------
 # Archived chats sync
 # ----------------------------
+def save_imported_archived_message(
+    session_id: str,
+    telegram_message_id: int,
+    role: str,
+    content: str,
+    turn_number: int,
+    ):
+    supabase = get_supabase()
+
+    payload = {
+        "session_id": session_id,
+        "telegram_message_id": telegram_message_id,
+        "turn_number": turn_number,
+        "role": role,
+        "content": content,
+        "status": "done" if role == "assistant" else "waiting_human",
+        "source": "human" if role == "assistant" else "telegram",
+        "idioma": "en",
+        "categorias_detectadas": [],
+        "categorias_respondibles": [],
+        "sent_to_telegram": True if role == "assistant" else False,
+    }
+
+    try:
+        supabase.table("chat_messages").insert(payload).execute()
+    except Exception as e:
+        # si ya existe por unique(session_id, telegram_message_id), lo ignoramos
+        print(f"[SYNC] Skipped duplicated archived message {telegram_message_id}: {e}")
+
+async def import_last_archived_messages(client, session_id: str, user_entity, limit: int = 10):
+    history = []
+    async for msg in client.iter_messages(user_entity, limit=limit):
+        history.append(msg)
+
+    history.reverse()
+
+    for msg in history:
+        text = (msg.message or "").strip()
+        if not text:
+            continue
+
+        turn_number = get_next_turn_number(session_id)
+
+        if msg.out:
+            role = "assistant"
+        else:
+            role = "user"
+
+        save_imported_archived_message(
+            session_id=session_id,
+            telegram_message_id=int(msg.id),
+            role=role,
+            content=text,
+            turn_number=turn_number,
+        )
+
 async def sync_archived_private_chats(client):
-    """
-    Imports archived private chats into test_sessions.
-    For now, it only registers chat metadata.
-    It does NOT import old message history.
-    """
     print("[SYNC] Starting archived private chats sync...")
 
     total_found = 0
@@ -291,7 +342,7 @@ async def sync_archived_private_chats(client):
 
             session = get_session_by_telegram_id(chat_id)
             if not session:
-                register_new_chat(
+                session_id = register_new_chat(
                     chat_id,
                     username,
                     first_name,
@@ -299,12 +350,20 @@ async def sync_archived_private_chats(client):
                 )
                 total_new += 1
                 print(f"[SYNC] Archived chat registered: {chat_id} ({username or first_name})")
+
+                # importar últimos 10 mensajes solo cuando el chat es nuevo en la BD
+                await import_last_archived_messages(client, session_id, entity, limit=10)
+
             else:
+                session_id = session["id"]
                 current_archived = bool(session.get("is_archived", False))
                 if not current_archived:
                     set_session_archived(chat_id, True)
                     total_updated += 1
                     print(f"[SYNC] Marked existing chat as archived: {chat_id}")
+
+                # opcional: si ya existe pero quieres intentar completar huecos, también puedes importar
+                await import_last_archived_messages(client, session_id, entity, limit=10)
 
         print(
             f"[SYNC] Archived sync completed | found={total_found} "
