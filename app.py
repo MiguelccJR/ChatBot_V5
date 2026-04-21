@@ -69,6 +69,10 @@ def fmt_datetime(value: str | None) -> str:
         return "-"
     return value[:19].replace("T", " ")
 
+def fmt_datetime_full(value: str | None) -> str:
+    if not value:
+        return "-"
+    return value[:19].replace("T", " ")
 
 def get_message_display_info(mensaje: dict) -> tuple[str, str, str]:
     role = mensaje.get("role", "assistant")
@@ -234,6 +238,19 @@ try:
     db_chat_messages = get_chat_messages(session_id_activo)
 except Exception as e:
     st.error(f"Error loading chat history: {e}")
+
+db_chat_messages = []
+try:
+    db_chat_messages = get_chat_messages(session_id_activo)
+except Exception as e:
+    st.error(f"Error loading chat history: {e}")
+
+history_key = f"history_limit_{session_id_activo}"
+
+if history_key not in st.session_state:
+    st.session_state[history_key] = 20
+
+history_limit = st.session_state[history_key]
 
 mensajes_pendientes = [
     m for m in db_chat_messages
@@ -401,36 +418,77 @@ else:
         except Exception as e:
             st.error(f"Error sending manual reply: {e}")
 
+# ----------------------------
 # Chat history
+# ----------------------------
 st.markdown("### Chat history")
-if not db_chat_messages:
+
+total_messages = len(db_chat_messages)
+shown_messages = db_chat_messages[-history_limit:] if db_chat_messages else []
+
+col_hist1, col_hist2 = st.columns([1, 3])
+
+with col_hist1:
+    if total_messages > history_limit:
+        if st.button("Load 10 more", key=f"load_more_{session_id_activo}", use_container_width=True):
+            st.session_state[history_key] += 10
+            st.rerun()
+
+with col_hist2:
+    st.caption(f"Showing {len(shown_messages)} of {total_messages} messages")
+
+if not shown_messages:
     st.info("No messages yet for this chat.")
 else:
-    for i, mensaje in enumerate(db_chat_messages[-100:]):
+    for i, mensaje in enumerate(shown_messages):
         role = mensaje["role"]
         source = mensaje.get("source", "")
         status = mensaje.get("status", "")
         turn_number = mensaje.get("turn_number", 0)
+        created_at = fmt_datetime_full(mensaje.get("created_at"))
+
         chat_role, avatar, label = get_message_display_info(mensaje)
 
         with st.chat_message(chat_role, avatar=avatar):
             st.markdown(mensaje["content"])
+
             meta = [label]
+
+            if created_at and created_at != "-":
+                meta.append(created_at)
             if source:
                 meta.append(f"source={source}")
             if status:
                 meta.append(f"status={status}")
             if turn_number is not None:
                 meta.append(f"turn={turn_number}")
+
             st.caption(" | ".join(meta))
 
-            if role == "assistant" and source == "local_ai":
+            if role == "assistant":
                 unique_id = f"{session_id_activo}_{turn_number}_{i}"
-                rating = st.radio("Rate this reply", options=["Good", "Regular", "Bad"], horizontal=True, key=f"rating_{unique_id}")
-                comment = st.text_input("Optional comment", key=f"comment_{unique_id}", placeholder="What sounds good or wrong here?")
+
+                rating = st.radio(
+                    "Rate this reply",
+                    options=["Good", "Regular", "Bad"],
+                    horizontal=True,
+                    key=f"rating_{unique_id}"
+                )
+
+                comment = st.text_input(
+                    "Optional comment",
+                    key=f"comment_{unique_id}",
+                    placeholder="What sounds good or wrong here?"
+                )
+
                 if st.button("Save feedback", key=f"save_{unique_id}"):
                     try:
-                        save_feedback(session_id=session_id_activo, turn_number=turn_number, rating=rating, comment=comment)
+                        save_feedback(
+                            session_id=session_id_activo,
+                            turn_number=turn_number,
+                            rating=rating,
+                            comment=comment
+                        )
                         st.success("Feedback saved")
                         st.rerun()
                     except Exception as e:
