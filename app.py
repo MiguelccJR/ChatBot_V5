@@ -91,6 +91,10 @@ def init_auth_state():
         st.session_state.auth_role = "user"
     if "manual_reply_text" not in st.session_state:
         st.session_state.manual_reply_text = ""
+    if "chat_version" not in st.session_state:
+        st.session_state.chat_version = 0
+    if "session_id_activo" not in st.session_state:
+        st.session_state.session_id_activo = None
 
 
 init_auth_state()
@@ -330,12 +334,14 @@ with st.sidebar:
             )
 
             if elegido != st.session_state.session_id_activo:
+                keys_to_delete = [
+                    k for k in list(st.session_state.keys())
+                    if k not in ("auth_username", "auth_role", "session_id_activo", "chat_version")
+                ]
+                for key in keys_to_delete:
+                    del st.session_state[key]
                 st.session_state.session_id_activo = elegido
-                st.session_state.pending_opener_type = None
-                st.session_state.manual_reply_text = ""
-                for key in list(st.session_state.keys()):
-                    if key.startswith("rating_") or key.startswith("comment_") or key.startswith("save_"):
-                        del st.session_state[key]
+                st.session_state.chat_version = st.session_state.get("chat_version", 0) + 1
                 st.rerun()
 
         if st.button("Refresh panel", use_container_width=True):
@@ -378,6 +384,9 @@ try:
     db_chat_messages = get_chat_messages(session_id_activo)
 except Exception as e:
     st.error(f"Error loading chat history: {e}")
+
+# Version key to force widget re-render on chat switch
+cv = f"{session_id_activo}_{st.session_state.get('chat_version', 0)}"
 
 mensajes_pendientes = [
     m for m in db_chat_messages
@@ -494,7 +503,7 @@ st.markdown("### Suggested openers")
 
 col1, col2 = st.columns(2)
 with col1:
-    if st.button("Soft opener", use_container_width=True):
+    if st.button("Soft opener", key=f"soft_{cv}", use_container_width=True):
         try:
             create_opener_request(session_id_activo, "soft")
             st.session_state.pending_opener_type = "soft"
@@ -503,7 +512,7 @@ with col1:
             st.error(f"Error requesting opener: {e}")
 
 with col2:
-    if st.button("Flirty opener", use_container_width=True):
+    if st.button("Flirty opener", key=f"flirty_{cv}", use_container_width=True):
         try:
             create_opener_request(session_id_activo, "flirty")
             st.session_state.pending_opener_type = "flirty"
@@ -571,7 +580,7 @@ else:
         placeholder="Write here or use an opener above...",
     )
 
-    if st.button("Send manual reply", use_container_width=True):
+    if st.button("Send manual reply", key=f"send_reply_{cv}", use_container_width=True):
         try:
             queue_manual_reply(
                 session_id=session_id_activo,
@@ -588,94 +597,51 @@ else:
 
 
 # ----------------------------
-# Chat history (most recent first)
+# Chat history
 # ----------------------------
 st.markdown("### Chat history")
-st.caption("Most recent messages at the top")
-
-MEDIA_PLACEHOLDERS = {
-    "[Video received while disabled]",
-    "[Photo received while disabled]",
-    "[Sticker received while disabled]",
-    "[Voice message received while disabled]",
-    "[Customer sent a photo]",
-    "[Customer sent a sticker]",
-    "[Media received while disabled]",
-    "[Media received while disabled — upload failed]",
-    "[Voice message]",
-    "[Photo]",
-    "[Video]",
-    "[Sticker]",
-    "[audio]",
-    "[image]",
-    "[video]",
-}
 
 if not db_chat_messages:
     st.info("No messages yet for this chat.")
 else:
-    mensajes_mostrar = list(reversed(db_chat_messages[-100:]))
-
-    for i, mensaje in enumerate(mensajes_mostrar):
+    for i, mensaje in enumerate(db_chat_messages[-100:]):
         role = mensaje["role"]
         source = mensaje.get("source", "")
         status = mensaje.get("status", "")
         turn_number = mensaje.get("turn_number", 0)
-        media_type = (mensaje.get("media_type") or "").strip()
-        media_url = (mensaje.get("media_url") or "").strip()
-        mime_type = (mensaje.get("mime_type") or "").strip()
-        message_id = mensaje.get("id", f"{turn_number}_{i}")
-        text_content = (mensaje.get("content") or "").strip()
 
         chat_role, avatar, label = get_message_display_info(mensaje)
 
         with st.chat_message(chat_role, avatar=avatar):
+            st.markdown(mensaje["content"])
 
-            # Render media
-            if media_type and media_url:
-                if media_type in ("image", "sticker"):
-                    try:
-                        st.image(media_url)
-                    except Exception:
-                        st.caption(f"📷 {media_url}")
-                elif media_type == "audio":
-                    try:
-                        st.audio(media_url)
-                    except Exception:
-                        st.caption(f"🎵 {media_url}")
-                elif media_type == "video":
-                    try:
-                        st.video(media_url)
-                    except Exception:
-                        st.caption(f"🎬 {media_url}")
+            meta = [label]
 
-            # Show text only if it's not a media placeholder
-            is_placeholder = text_content in MEDIA_PLACEHOLDERS or any(
-                text_content.startswith(f"[{p}") for p in ["Voice message]:", "Voice message received", "Photo received", "Video received", "Sticker received", "Media received"]
-            )
-            if text_content and not (media_type and is_placeholder):
-                st.markdown(text_content)
-
-            # Metadata
-            meta = [label, fmt_datetime(mensaje.get("created_at"))]
+            if source:
+                meta.append(f"source={source}")
             if status:
                 meta.append(f"status={status}")
-            st.caption(" | ".join(m for m in meta if m and m != "-"))
+            if turn_number is not None:
+                meta.append(f"turn={turn_number}")
 
-            # Feedback only for bot messages
+            st.caption(" | ".join(meta))
+
             if role == "assistant" and source == "local_ai":
-                unique_id = f"{session_id_activo}_{message_id}"
+                unique_id = f"{cv}_{turn_number}_{i}"
+
                 rating = st.radio(
                     "Rate this reply",
                     options=["Good", "Regular", "Bad"],
                     horizontal=True,
                     key=f"rating_{unique_id}"
                 )
+
                 comment = st.text_input(
                     "Optional comment",
                     key=f"comment_{unique_id}",
                     placeholder="What sounds good or wrong here?"
                 )
+
                 if st.button("Save feedback", key=f"save_{unique_id}"):
                     try:
                         save_feedback(
