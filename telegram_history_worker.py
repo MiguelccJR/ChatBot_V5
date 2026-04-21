@@ -10,7 +10,7 @@ load_dotenv()
 API_ID = int(os.getenv("TELEGRAM_API_ID", "0"))
 API_HASH = os.getenv("TELEGRAM_API_HASH", "")
 PHONE = os.getenv("TELEGRAM_PHONE", "")
-SESSION_FILE = "telegram_session"
+SESSION_FILE = "telegram_session_history"
 
 POLL_SECONDS = 3
 
