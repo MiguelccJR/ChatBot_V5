@@ -197,13 +197,13 @@ with st.sidebar:
             if elegido != st.session_state.session_id_activo:
                 st.session_state.session_id_activo = elegido
 
-    # limpia estados ligados al render del chat anterior
-    st.session_state.pending_opener_type = None
+                # limpia estados ligados al render del chat anterior
+                st.session_state.pending_opener_type = None
 
-    st.rerun()
+                st.rerun()
 
-        if st.button("Refresh panel", use_container_width=True):
-            st.rerun()
+            if st.button("Refresh panel", use_container_width=True):
+                st.rerun()
 
 if not sesiones:
     st.stop()
