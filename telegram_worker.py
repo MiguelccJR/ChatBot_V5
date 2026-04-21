@@ -293,34 +293,34 @@ def update_history_import_request(request_id: int, status: str, error_text: str 
         return None
 
     def save_imported_message(
-    session_id: str,
-    telegram_message_id: int,
-    role: str,
-    content: str,
-    turn_number: int,
-):
-    supabase = get_supabase()
+        session_id: str,
+        telegram_message_id: int,
+        role: str,
+        content: str,
+        turn_number: int,
+    ):
+        supabase = get_supabase()
 
-    payload = {
-        "session_id": session_id,
-        "telegram_message_id": telegram_message_id,
-        "turn_number": turn_number,
-        "role": role,
-        "content": content,
-        "status": "done" if role == "assistant" else "waiting_human",
-        "source": "human" if role == "assistant" else "telegram",
-        "idioma": "en",
-        "categorias_detectadas": [],
-        "categorias_respondibles": [],
-        "sent_to_telegram": True if role == "assistant" else False,
-    }
+        payload = {
+            "session_id": session_id,
+            "telegram_message_id": telegram_message_id,
+            "turn_number": turn_number,
+            "role": role,
+            "content": content,
+            "status": "done" if role == "assistant" else "waiting_human",
+            "source": "human" if role == "assistant" else "telegram",
+            "idioma": "en",
+            "categorias_detectadas": [],
+            "categorias_respondibles": [],
+            "sent_to_telegram": True if role == "assistant" else False,
+        }
 
-    try:
-        supabase.table("chat_messages").insert(payload).execute()
-        return True
-    except Exception as e:
-        print(f"[HISTORY IMPORT] Skipped duplicated message {telegram_message_id}: {e}")
-        return False
+        try:
+            supabase.table("chat_messages").insert(payload).execute()
+            return True
+        except Exception as e:
+            print(f"[HISTORY IMPORT] Skipped duplicated message {telegram_message_id}: {e}")
+            return False
 
 def get_test_session_by_id(session_id: str):
     supabase = get_supabase()
