@@ -115,11 +115,26 @@ def register_new_chat(
             "telegram_username": username,
             "telegram_first_name": first_name,
             "active": True,
+            "is_archived": is_archived,
         })
         .execute()
     )
-    print(f"[TELEGRAM] New chat registered: {telegram_chat_id} ({username or first_name}) — DISABLED")
+    print(
+        f"[TELEGRAM] New chat registered: {telegram_chat_id} "
+        f"({username or first_name}) — DISABLED | archived={is_archived}"
+    )
     return response.data[0]["id"]
+
+
+def set_session_archived(telegram_chat_id: str, is_archived: bool):
+    supabase = get_supabase()
+    response = (
+        supabase.table("test_sessions")
+        .update({"is_archived": is_archived})
+        .eq("telegram_chat_id", str(telegram_chat_id))
+        .execute()
+    )
+    return response.data
 
 
 def save_incoming_message(
@@ -245,60 +260,17 @@ def get_owner_telegram_id() -> str | None:
     )
     return response.data[0].get("value") if response.data else None
 
-def get_pending_history_import_requests(limit: int = 5):
-    supabase = get_supabase()
-    response = (
-        supabase.table("telegram_history_import_requests")
-        .select("*")
-        .eq("status", "pending")
-        .order("created_at")
-        .limit(limit)
-        .execute()
-    )
-    return response.data or []
 
-
-def update_history_import_request(request_id: int, status: str, error_text: str | None = None):
-    supabase = get_supabase()
-
-    payload = {
-        "status": status,
-        "error_text": error_text,
-    }
-
-    if status in ("done", "error"):
-        payload["processed_at"] = datetime.now(timezone.utc).isoformat()
-
-    response = (
-        supabase.table("telegram_history_import_requests")
-        .update(payload)
-        .eq("id", request_id)
-        .execute()
-    )
-    return response.data
-
-def get_oldest_imported_telegram_message_id(session_id: str):
-        supabase = get_supabase()
-        response = (
-            supabase.table("chat_messages")
-            .select("telegram_message_id")
-            .eq("session_id", session_id)
-            .not_.is_("telegram_message_id", "null")
-            .order("telegram_message_id", desc=False)
-            .limit(1)
-            .execute()
-        )
-        if response.data:
-            return response.data[0].get("telegram_message_id")
-        return None
-
-def save_imported_message(
+# ----------------------------
+# Archived chats sync
+# ----------------------------
+def save_imported_archived_message(
     session_id: str,
     telegram_message_id: int,
     role: str,
     content: str,
     turn_number: int,
-):
+    ):
     supabase = get_supabase()
 
     payload = {
@@ -317,26 +289,94 @@ def save_imported_message(
 
     try:
         supabase.table("chat_messages").insert(payload).execute()
-        return True
     except Exception as e:
-        print(f"[HISTORY IMPORT] Skipped duplicated message {telegram_message_id}: {e}")
-        return False
+        # si ya existe por unique(session_id, telegram_message_id), lo ignoramos
+        print(f"[SYNC] Skipped duplicated archived message {telegram_message_id}: {e}")
 
-def get_test_session_by_id(session_id: str):
-    supabase = get_supabase()
-    response = (
-        supabase.table("test_sessions")
-        .select("*")
-        .eq("id", session_id)
-        .limit(1)
-        .execute()
-    )
-    return response.data[0] if response.data else None
+async def import_last_archived_messages(client, session_id: str, user_entity, limit: int = 10):
+    history = []
+    async for msg in client.iter_messages(user_entity, limit=limit):
+        history.append(msg)
+
+    history.reverse()
+
+    for msg in history:
+        text = (msg.message or "").strip()
+        if not text:
+            continue
+
+        turn_number = get_next_turn_number(session_id)
+
+        if msg.out:
+            role = "assistant"
+        else:
+            role = "user"
+
+        save_imported_archived_message(
+            session_id=session_id,
+            telegram_message_id=int(msg.id),
+            role=role,
+            content=text,
+            turn_number=turn_number,
+        )
+
+async def sync_archived_private_chats(client):
+    print("[SYNC] Starting archived private chats sync...")
+
+    total_found = 0
+    total_new = 0
+    total_updated = 0
+
+    try:
+        async for dialog in client.iter_dialogs(folder=1):
+            entity = dialog.entity
+
+            if not isinstance(entity, User):
+                continue
+
+            chat_id = str(entity.id)
+            username = getattr(entity, "username", "") or ""
+            first_name = getattr(entity, "first_name", "") or ""
+
+            total_found += 1
+
+            session = get_session_by_telegram_id(chat_id)
+            if not session:
+                session_id = register_new_chat(
+                    chat_id,
+                    username,
+                    first_name,
+                    is_archived=True,
+                )
+                total_new += 1
+                print(f"[SYNC] Archived chat registered: {chat_id} ({username or first_name})")
+
+                # importar últimos 10 mensajes solo cuando el chat es nuevo en la BD
+                await import_last_archived_messages(client, session_id, entity, limit=10)
+
+            else:
+                session_id = session["id"]
+                current_archived = bool(session.get("is_archived", False))
+                if not current_archived:
+                    set_session_archived(chat_id, True)
+                    total_updated += 1
+                    print(f"[SYNC] Marked existing chat as archived: {chat_id}")
+
+                # opcional: si ya existe pero quieres intentar completar huecos, también puedes importar
+                await import_last_archived_messages(client, session_id, entity, limit=10)
+
+        print(
+            f"[SYNC] Archived sync completed | found={total_found} "
+            f"new={total_new} updated={total_updated}"
+        )
+
+    except Exception as e:
+        print(f"[SYNC ERROR] Could not sync archived chats: {e}")
+
 
 # ----------------------------
-# Archived chats sync
+# Main
 # ----------------------------
-
 async def main():
     print(f"[TELEGRAM] Starting worker for {PHONE}")
 
@@ -345,6 +385,9 @@ async def main():
 
     me = await client.get_me()
     print(f"[TELEGRAM] Logged in as {me.first_name} (id={me.id})")
+
+    # Sync archived private chats at startup
+    await sync_archived_private_chats(client)
 
     # ----------------------------
     # Incoming messages from customers
@@ -368,7 +411,7 @@ async def main():
         if not session:
             username = getattr(sender, "username", "") or ""
             first_name = getattr(sender, "first_name", "") or ""
-            register_new_chat(chat_id, username, first_name)
+            register_new_chat(chat_id, username, first_name, is_archived=False)
             return
 
         # If an archived chat writes again, optionally keep it archived.
@@ -459,26 +502,57 @@ async def main():
                     )
                     return
 
-            # --- Photo: try to send to vision AI ---
-            is_photo = hasattr(msg_media, 'photo') or (
-                hasattr(msg_media, 'document') and
-                any('image' in str(getattr(attr, 'mime_type', ''))
-                    for attr in getattr(getattr(msg_media, 'document', None), 'attributes', []))
-            )
+            # --- Photo: upload to Supabase Storage ---
+            is_photo = hasattr(msg_media, 'photo')
+            if not is_photo and hasattr(msg_media, 'document'):
+                doc_mime = getattr(msg_media.document, 'mime_type', '') or ''
+                is_photo = doc_mime.startswith('image/')
 
             if is_photo:
-                print(f"[TELEGRAM] Photo received from {chat_id} — attempting vision processing")
+                print(f"[TELEGRAM] Photo from {chat_id} — uploading to storage")
                 try:
                     img_bytes = await client.download_media(event.message, bytes)
-                    img_b64 = base64.b64encode(img_bytes).decode('utf-8')
-
+                    doc_mime = getattr(getattr(msg_media, 'document', None), 'mime_type', '') or 'image/jpeg'
+                    if hasattr(msg_media, 'photo'):
+                        doc_mime = 'image/jpeg'
+                    ext = 'jpg' if 'jpeg' in doc_mime or doc_mime == 'image/jpg' else doc_mime.split('/')[-1]
+                    storage_path = f"images/{chat_id}_{int(__import__('time').time())}.{ext}"
+                    media_url = upload_media_to_supabase_storage(img_bytes, storage_path, doc_mime)
                     turn_number = get_next_turn_number(session_id)
-                    image_text = "[Image attached — base64 data available for vision model]"
-                    save_incoming_message_with_image(session_id, image_text, turn_number, img_b64)
-                    print(f"[TELEGRAM] Photo saved for vision processing | session={session_id}")
+                    save_incoming_media_message(
+                        session_id, "[Customer sent a photo]", turn_number,
+                        media_type="image", media_url=media_url, mime_type=doc_mime
+                    )
+                    print(f"[TELEGRAM] Photo uploaded to storage | session={session_id}")
                     return
                 except Exception as e:
                     print(f"[TELEGRAM] Could not process photo: {e} — sending fallback")
+
+            # --- Sticker: save as image if it's a static sticker (webp) ---
+            is_sticker = False
+            if hasattr(msg_media, 'document'):
+                doc_mime = getattr(msg_media.document, 'mime_type', '') or ''
+                is_sticker = doc_mime == 'image/webp'
+                for attr in getattr(msg_media.document, 'attributes', []):
+                    if attr.__class__.__name__ == 'DocumentAttributeSticker':
+                        is_sticker = True
+                        break
+
+            if is_sticker:
+                print(f"[TELEGRAM] Sticker from {chat_id} — uploading to storage")
+                try:
+                    sticker_bytes = await client.download_media(event.message, bytes)
+                    storage_path = f"stickers/{chat_id}_{int(__import__('time').time())}.webp"
+                    media_url = upload_media_to_supabase_storage(sticker_bytes, storage_path, 'image/webp')
+                    turn_number = get_next_turn_number(session_id)
+                    save_incoming_media_message(
+                        session_id, "[Customer sent a sticker]", turn_number,
+                        media_type="sticker", media_url=media_url, mime_type="image/webp"
+                    )
+                    print(f"[TELEGRAM] Sticker uploaded | session={session_id}")
+                    return
+                except Exception as e:
+                    print(f"[TELEGRAM] Could not process sticker: {e}")
 
             # --- Fallback for unsupported media ---
             print(f"[TELEGRAM] Unsupported media from {chat_id} — sending friendly reply")
@@ -630,7 +704,6 @@ async def main():
         await asyncio.gather(
             client.run_until_disconnected(),
             send_pending_replies(),
-            process_history_import_requests(client),
         )
     except (KeyboardInterrupt, asyncio.CancelledError):
         print("[TELEGRAM] Worker stopped by user.")
@@ -638,83 +711,6 @@ async def main():
         await client.disconnect()
         print("[TELEGRAM] Disconnected cleanly.")
 
-async def import_older_messages_for_session(client, session_id: str, telegram_chat_id: str, count_to_import: int):
-    entity = await client.get_entity(int(telegram_chat_id))
-
-    oldest_known_id = get_oldest_imported_telegram_message_id(session_id)
-
-    collected = []
-
-    if oldest_known_id:
-        async for msg in client.iter_messages(entity, limit=count_to_import, max_id=int(oldest_known_id)):
-            collected.append(msg)
-    else:
-        async for msg in client.iter_messages(entity, limit=count_to_import):
-            collected.append(msg)
-
-    collected.reverse()
-
-    inserted = 0
-    for msg in collected:
-        text = (msg.message or "").strip()
-        if not text:
-            continue
-
-        turn_number = get_next_turn_number(session_id)
-        role = "assistant" if msg.out else "user"
-
-        ok = save_imported_message(
-            session_id=session_id,
-            telegram_message_id=int(msg.id),
-            role=role,
-            content=text,
-            turn_number=turn_number,
-        )
-        if ok:
-            inserted += 1
-
-    return inserted
-
-async def process_history_import_requests(client):
-    while True:
-        try:
-            pending = get_pending_history_import_requests(limit=5)
-
-            for item in pending:
-                request_id = item["id"]
-                session_id = item["session_id"]
-                count_to_import = item.get("count_to_import", 10) or 10
-
-                print(f"[HISTORY IMPORT] Processing request {request_id} for session {session_id}")
-                update_history_import_request(request_id, "processing")
-
-                try:
-                    session = get_test_session_by_id(session_id)
-                    if not session:
-                        raise ValueError("Session not found")
-
-                    telegram_chat_id = session.get("telegram_chat_id")
-                    if not telegram_chat_id:
-                        raise ValueError("telegram_chat_id not found in session")
-
-                    inserted = await import_older_messages_for_session(
-                        client,
-                        session_id=session_id,
-                        telegram_chat_id=str(telegram_chat_id),
-                        count_to_import=count_to_import,
-                    )
-
-                    print(f"[HISTORY IMPORT] Request {request_id} done | inserted={inserted}")
-                    update_history_import_request(request_id, "done")
-
-                except Exception as e:
-                    print(f"[HISTORY IMPORT ERROR] Request {request_id}: {e}")
-                    update_history_import_request(request_id, "error", error_text=str(e))
-
-        except Exception as e:
-            print(f"[HISTORY IMPORT LOOP ERROR] {e}")
-
-        await asyncio.sleep(3)
 
 if __name__ == "__main__":
     try:

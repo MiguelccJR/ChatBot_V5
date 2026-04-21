@@ -494,6 +494,23 @@ else:
         with st.chat_message(chat_role, avatar=avatar):
             st.markdown(mensaje["content"])
 
+            media_type = mensaje.get("media_type")
+            media_url = mensaje.get("media_url")
+            mime_type = mensaje.get("mime_type")
+
+            if media_type and media_url:
+                if media_type in ("image", "sticker"):
+                    st.image(media_url)
+
+                elif media_type == "audio":
+                    st.audio(media_url)
+
+                elif media_type == "video":
+                    st.video(media_url)
+
+                else:
+                    st.caption(f"Unsupported media: {media_type} ({mime_type})")
+
             meta = [label]
 
             if created_at and created_at != "-":
