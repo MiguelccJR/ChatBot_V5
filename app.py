@@ -12,6 +12,8 @@ from db import (
     create_opener_request,
     get_latest_opener_request,
     create_chat_message,
+    create_telegram_history_import_request,
+    get_latest_telegram_history_import_request,
 )
 
 st.set_page_config(
@@ -409,6 +411,17 @@ hay_opener_pendiente = False
 if latest_requested_opener:
     hay_opener_pendiente = latest_requested_opener.get("status") in ("pending", "processing")
 
+latest_history_import = None
+try:
+    latest_history_import = get_latest_telegram_history_import_request(session_id_activo)
+except Exception:
+    pass
+
+hay_import_pendiente = bool(
+    latest_history_import and
+    latest_history_import.get("status") in ("pending", "processing")
+)
+
 
 # ----------------------------
 # Header
@@ -597,51 +610,108 @@ else:
 
 
 # ----------------------------
-# Chat history
+# Chat history (most recent first)
 # ----------------------------
 st.markdown("### Chat history")
+
+col_imp1, col_imp2 = st.columns([1, 3])
+with col_imp1:
+    if st.button("⬆️ Import 10 older", key=f"import_{cv}", use_container_width=True):
+        try:
+            create_telegram_history_import_request(
+                session_id=session_id_activo,
+                requested_by=st.session_state.get("auth_username", "user"),
+                count_to_import=10,
+            )
+            st.success("Import queued")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error: {e}")
+with col_imp2:
+    if latest_history_import:
+        imp_status = latest_history_import.get("status")
+        if imp_status == "pending":
+            st.info("Import queued...")
+        elif imp_status == "processing":
+            st.info("Importing older messages...")
+        elif imp_status == "done":
+            st.caption("Last import completed ✓")
+        elif imp_status == "error":
+            st.warning(f"Import error: {latest_history_import.get('error_text', '')}")
+
+st.caption("Most recent messages at the top")
+
+MEDIA_PLACEHOLDERS = {
+    "[Video received while disabled]",
+    "[Photo received while disabled]",
+    "[Sticker received while disabled]",
+    "[Voice message received while disabled]",
+    "[Customer sent a photo]",
+    "[Customer sent a sticker]",
+    "[Media received while disabled]",
+    "[Media received while disabled — upload failed]",
+}
 
 if not db_chat_messages:
     st.info("No messages yet for this chat.")
 else:
-    for i, mensaje in enumerate(db_chat_messages[-100:]):
+    mensajes_mostrar = list(reversed(db_chat_messages[-100:]))
+
+    for i, mensaje in enumerate(mensajes_mostrar):
         role = mensaje["role"]
         source = mensaje.get("source", "")
         status = mensaje.get("status", "")
         turn_number = mensaje.get("turn_number", 0)
+        media_type = (mensaje.get("media_type") or "").strip()
+        media_url = (mensaje.get("media_url") or "").strip()
+        message_id = mensaje.get("id", f"{turn_number}_{i}")
+        text_content = (mensaje.get("content") or "").strip()
 
         chat_role, avatar, label = get_message_display_info(mensaje)
 
         with st.chat_message(chat_role, avatar=avatar):
-            st.markdown(mensaje["content"])
 
-            meta = [label]
+            # Render media
+            if media_type and media_url:
+                if media_type in ("image", "sticker"):
+                    try:
+                        st.image(media_url)
+                    except Exception:
+                        st.caption(f"📷 {media_url}")
+                elif media_type == "audio":
+                    try:
+                        st.audio(media_url)
+                    except Exception:
+                        st.caption(f"🎵 {media_url}")
+                elif media_type == "video":
+                    try:
+                        st.video(media_url)
+                    except Exception:
+                        st.caption(f"🎬 {media_url}")
 
-            if source:
-                meta.append(f"source={source}")
+            # Show text only if not a placeholder
+            is_placeholder = text_content in MEDIA_PLACEHOLDERS or text_content.startswith("[Voice message]:")
+            if text_content and not (media_type and is_placeholder):
+                st.markdown(text_content)
+
+            meta = [label, fmt_datetime(mensaje.get("created_at"))]
             if status:
                 meta.append(f"status={status}")
-            if turn_number is not None:
-                meta.append(f"turn={turn_number}")
-
-            st.caption(" | ".join(meta))
+            st.caption(" | ".join(m for m in meta if m and m != "-"))
 
             if role == "assistant" and source == "local_ai":
-                unique_id = f"{cv}_{turn_number}_{i}"
-
+                unique_id = f"{cv}_{message_id}"
                 rating = st.radio(
                     "Rate this reply",
                     options=["Good", "Regular", "Bad"],
                     horizontal=True,
                     key=f"rating_{unique_id}"
                 )
-
                 comment = st.text_input(
                     "Optional comment",
                     key=f"comment_{unique_id}",
                     placeholder="What sounds good or wrong here?"
                 )
-
                 if st.button("Save feedback", key=f"save_{unique_id}"):
                     try:
                         save_feedback(
@@ -659,6 +729,6 @@ else:
 # ----------------------------
 # Auto-refresh
 # ----------------------------
-if hay_pendiente or hay_opener_pendiente:
+if hay_pendiente or hay_opener_pendiente or hay_import_pendiente:
     time.sleep(2)
     st.rerun()
