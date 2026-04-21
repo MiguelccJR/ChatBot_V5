@@ -277,7 +277,7 @@ def update_history_import_request(request_id: int, status: str, error_text: str 
     )
     return response.data
 
-    def get_oldest_imported_telegram_message_id(session_id: str):
+def get_oldest_imported_telegram_message_id(session_id: str):
         supabase = get_supabase()
         response = (
             supabase.table("chat_messages")
@@ -292,35 +292,35 @@ def update_history_import_request(request_id: int, status: str, error_text: str 
             return response.data[0].get("telegram_message_id")
         return None
 
-    def save_imported_message(
-        session_id: str,
-        telegram_message_id: int,
-        role: str,
-        content: str,
-        turn_number: int,
-    ):
-        supabase = get_supabase()
+def save_imported_message(
+    session_id: str,
+    telegram_message_id: int,
+    role: str,
+    content: str,
+    turn_number: int,
+):
+    supabase = get_supabase()
 
-        payload = {
-            "session_id": session_id,
-            "telegram_message_id": telegram_message_id,
-            "turn_number": turn_number,
-            "role": role,
-            "content": content,
-            "status": "done" if role == "assistant" else "waiting_human",
-            "source": "human" if role == "assistant" else "telegram",
-            "idioma": "en",
-            "categorias_detectadas": [],
-            "categorias_respondibles": [],
-            "sent_to_telegram": True if role == "assistant" else False,
-        }
+    payload = {
+        "session_id": session_id,
+        "telegram_message_id": telegram_message_id,
+        "turn_number": turn_number,
+        "role": role,
+        "content": content,
+        "status": "done" if role == "assistant" else "waiting_human",
+        "source": "human" if role == "assistant" else "telegram",
+        "idioma": "en",
+        "categorias_detectadas": [],
+        "categorias_respondibles": [],
+        "sent_to_telegram": True if role == "assistant" else False,
+    }
 
-        try:
-            supabase.table("chat_messages").insert(payload).execute()
-            return True
-        except Exception as e:
-            print(f"[HISTORY IMPORT] Skipped duplicated message {telegram_message_id}: {e}")
-            return False
+    try:
+        supabase.table("chat_messages").insert(payload).execute()
+        return True
+    except Exception as e:
+        print(f"[HISTORY IMPORT] Skipped duplicated message {telegram_message_id}: {e}")
+        return False
 
 def get_test_session_by_id(session_id: str):
     supabase = get_supabase()
