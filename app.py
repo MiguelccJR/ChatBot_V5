@@ -187,7 +187,6 @@ with st.sidebar:
                 icon = MODE_ICONS.get(mode, "⚪")
                 display = get_session_display_name(s)
                 mapa_labels[s["id"]] = f"{icon} {display}"
-
             elegido = st.radio(
                 "Select chat",
                 options=opciones,
@@ -197,7 +196,11 @@ with st.sidebar:
 
             if elegido != st.session_state.session_id_activo:
                 st.session_state.session_id_activo = elegido
-                st.rerun()
+
+    # limpia estados ligados al render del chat anterior
+    st.session_state.pending_opener_type = None
+
+    st.rerun()
 
         if st.button("Refresh panel", use_container_width=True):
             st.rerun()
@@ -446,6 +449,7 @@ else:
         status = mensaje.get("status", "")
         turn_number = mensaje.get("turn_number", 0)
         created_at = fmt_datetime_full(mensaje.get("created_at"))
+        message_id = mensaje.get("id", f"{turn_number}_{i}")
 
         chat_role, avatar, label = get_message_display_info(mensaje)
 
@@ -466,7 +470,7 @@ else:
             st.caption(" | ".join(meta))
 
             if role == "assistant":
-                unique_id = f"{session_id_activo}_{turn_number}_{i}"
+                unique_id = f"{session_id_activo}_{message_id}"
 
                 rating = st.radio(
                     "Rate this reply",
