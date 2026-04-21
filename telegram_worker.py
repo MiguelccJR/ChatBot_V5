@@ -264,119 +264,6 @@ def get_owner_telegram_id() -> str | None:
 # ----------------------------
 # Archived chats sync
 # ----------------------------
-def save_imported_archived_message(
-    session_id: str,
-    telegram_message_id: int,
-    role: str,
-    content: str,
-    turn_number: int,
-    ):
-    supabase = get_supabase()
-
-    payload = {
-        "session_id": session_id,
-        "telegram_message_id": telegram_message_id,
-        "turn_number": turn_number,
-        "role": role,
-        "content": content,
-        "status": "done" if role == "assistant" else "waiting_human",
-        "source": "human" if role == "assistant" else "telegram",
-        "idioma": "en",
-        "categorias_detectadas": [],
-        "categorias_respondibles": [],
-        "sent_to_telegram": True if role == "assistant" else False,
-    }
-
-    try:
-        supabase.table("chat_messages").insert(payload).execute()
-    except Exception as e:
-        # si ya existe por unique(session_id, telegram_message_id), lo ignoramos
-        print(f"[SYNC] Skipped duplicated archived message {telegram_message_id}: {e}")
-
-async def import_last_archived_messages(client, session_id: str, user_entity, limit: int = 10):
-    history = []
-    async for msg in client.iter_messages(user_entity, limit=limit):
-        history.append(msg)
-
-    history.reverse()
-
-    for msg in history:
-        text = (msg.message or "").strip()
-        if not text:
-            continue
-
-        turn_number = get_next_turn_number(session_id)
-
-        if msg.out:
-            role = "assistant"
-        else:
-            role = "user"
-
-        save_imported_archived_message(
-            session_id=session_id,
-            telegram_message_id=int(msg.id),
-            role=role,
-            content=text,
-            turn_number=turn_number,
-        )
-
-async def sync_archived_private_chats(client):
-    print("[SYNC] Starting archived private chats sync...")
-
-    total_found = 0
-    total_new = 0
-    total_updated = 0
-
-    try:
-        async for dialog in client.iter_dialogs(folder=1):
-            entity = dialog.entity
-
-            if not isinstance(entity, User):
-                continue
-
-            chat_id = str(entity.id)
-            username = getattr(entity, "username", "") or ""
-            first_name = getattr(entity, "first_name", "") or ""
-
-            total_found += 1
-
-            session = get_session_by_telegram_id(chat_id)
-            if not session:
-                session_id = register_new_chat(
-                    chat_id,
-                    username,
-                    first_name,
-                    is_archived=True,
-                )
-                total_new += 1
-                print(f"[SYNC] Archived chat registered: {chat_id} ({username or first_name})")
-
-                # importar últimos 10 mensajes solo cuando el chat es nuevo en la BD
-                await import_last_archived_messages(client, session_id, entity, limit=10)
-
-            else:
-                session_id = session["id"]
-                current_archived = bool(session.get("is_archived", False))
-                if not current_archived:
-                    set_session_archived(chat_id, True)
-                    total_updated += 1
-                    print(f"[SYNC] Marked existing chat as archived: {chat_id}")
-
-                # opcional: si ya existe pero quieres intentar completar huecos, también puedes importar
-                await import_last_archived_messages(client, session_id, entity, limit=10)
-
-        print(
-            f"[SYNC] Archived sync completed | found={total_found} "
-            f"new={total_new} updated={total_updated}"
-        )
-
-    except Exception as e:
-        print(f"[SYNC ERROR] Could not sync archived chats: {e}")
-
-
-# ----------------------------
-# Main
-# ----------------------------
 async def main():
     print(f"[TELEGRAM] Starting worker for {PHONE}")
 
@@ -385,9 +272,6 @@ async def main():
 
     me = await client.get_me()
     print(f"[TELEGRAM] Logged in as {me.first_name} (id={me.id})")
-
-    # Sync archived private chats at startup
-    await sync_archived_private_chats(client)
 
     # ----------------------------
     # Incoming messages from customers
@@ -422,19 +306,96 @@ async def main():
             preview = repr(text[:80]) if text else "[media]"
             print(f"[MONITOR] Disabled chat {chat_id}: {preview}")
 
-            turn_number = get_next_turn_number(session["id"])
+            session_id_dis = session["id"]
+            turn_number = get_next_turn_number(session_id_dis)
 
             if has_media and not text:
-                save_incoming_message(
-                    session["id"],
-                    "[Disabled chat media message]",
-                    turn_number,
-                    status="waiting_human",
-                    error_text="Disabled chat monitored only",
-                )
+                msg_media = event.message.media
+
+                # Check if photo
+                is_photo_dis = hasattr(msg_media, 'photo')
+                if not is_photo_dis and hasattr(msg_media, 'document'):
+                    doc_mime_dis = getattr(msg_media.document, 'mime_type', '') or ''
+                    is_photo_dis = doc_mime_dis.startswith('image/')
+
+                # Check if sticker
+                is_sticker_dis = False
+                if hasattr(msg_media, 'document'):
+                    doc_mime_dis = getattr(msg_media.document, 'mime_type', '') or ''
+                    is_sticker_dis = doc_mime_dis == 'image/webp'
+                    for attr in getattr(msg_media.document, 'attributes', []):
+                        if attr.__class__.__name__ == 'DocumentAttributeSticker':
+                            is_sticker_dis = True
+                            break
+
+                # Detect media type
+                doc_dis = getattr(msg_media, 'document', None)
+                doc_mime_dis = (getattr(doc_dis, 'mime_type', '') or '') if doc_dis else ''
+
+                is_voice_dis = False
+                is_video_dis = False
+                if doc_dis:
+                    for attr in getattr(doc_dis, 'attributes', []):
+                        cls = attr.__class__.__name__
+                        if cls == 'DocumentAttributeAudio':
+                            is_voice_dis = True
+                        if cls == 'DocumentAttributeVideo':
+                            is_video_dis = True
+                    if doc_mime_dis in ('audio/ogg', 'audio/mpeg', 'audio/mp4', 'audio/m4a', 'audio/wav'):
+                        is_voice_dis = True
+                    if doc_mime_dis.startswith('video/'):
+                        is_video_dis = True
+
+                import time as _time
+                ts_dis = int(_time.time())
+
+                try:
+                    media_bytes_dis = await client.download_media(event.message, bytes)
+
+                    if is_photo_dis or is_sticker_dis:
+                        mime_dis = 'image/webp' if is_sticker_dis else (doc_mime_dis or 'image/jpeg')
+                        if hasattr(msg_media, 'photo') and not is_sticker_dis:
+                            mime_dis = 'image/jpeg'
+                        ext_dis = 'webp' if is_sticker_dis else ('jpg' if 'jpeg' in mime_dis else mime_dis.split('/')[-1])
+                        folder_dis = 'stickers' if is_sticker_dis else 'images'
+                        mtype_dis = 'sticker' if is_sticker_dis else 'image'
+                        label_dis = 'Sticker' if is_sticker_dis else 'Photo'
+
+                    elif is_voice_dis:
+                        mime_dis = doc_mime_dis or 'audio/ogg'
+                        ext_dis = mime_dis.split('/')[-1].split(';')[0] or 'ogg'
+                        folder_dis = 'audio'
+                        mtype_dis = 'audio'
+                        label_dis = 'Voice message'
+
+                    elif is_video_dis:
+                        mime_dis = doc_mime_dis or 'video/mp4'
+                        ext_dis = mime_dis.split('/')[-1].split(';')[0] or 'mp4'
+                        folder_dis = 'video'
+                        mtype_dis = 'video'
+                        label_dis = 'Video'
+
+                    else:
+                        save_incoming_message(session_id_dis, "[Media received while disabled]", turn_number,
+                            status="waiting_human", error_text="Disabled chat monitored only")
+                        return
+
+                    storage_path_dis = f"{folder_dis}/{chat_id}_{ts_dis}.{ext_dis}"
+                    media_url_dis = upload_media_to_supabase_storage(media_bytes_dis, storage_path_dis, mime_dis)
+                    save_incoming_media_message(
+                        session_id_dis, f"[{label_dis} received while disabled]",
+                        turn_number, media_type=mtype_dis, media_url=media_url_dis, mime_type=mime_dis,
+                        status="waiting_human", error_text="Disabled chat monitored only",
+                    )
+                    print(f"[MONITOR] Saved {mtype_dis} from disabled chat {chat_id}")
+
+                except Exception as e:
+                    print(f"[MONITOR] Could not save media from disabled chat: {e}")
+                    save_incoming_message(session_id_dis, "[Media received while disabled — upload failed]",
+                        turn_number, status="waiting_human", error_text="Disabled chat monitored only")
             else:
                 save_incoming_message(
-                    session["id"],
+                    session_id_dis,
                     text or "[Empty message]",
                     turn_number,
                     status="waiting_human",
