@@ -309,6 +309,250 @@ def get_owner_telegram_id() -> str | None:
 # ----------------------------
 # Archived chats sync
 # ----------------------------
+def get_pending_history_import_requests(limit: int = 5) -> list:
+    supabase = get_supabase()
+    try:
+        response = (
+            supabase.table("telegram_history_import_requests")
+            .select("*")
+            .eq("status", "pending")
+            .order("created_at")
+            .limit(limit)
+            .execute()
+        )
+        return response.data or []
+    except Exception as e:
+        print(f"[HISTORY] Could not fetch import requests: {e}")
+        return []
+
+
+def update_history_import_request(request_id: int, status: str, error_text: str | None = None):
+    supabase = get_supabase()
+    payload = {"status": status, "error_text": error_text}
+    if status in ("done", "error"):
+        payload["processed_at"] = datetime.now(timezone.utc).isoformat()
+    supabase.table("telegram_history_import_requests").update(payload).eq("id", request_id).execute()
+
+
+def get_oldest_imported_telegram_message_id(session_id: str):
+    supabase = get_supabase()
+    response = (
+        supabase.table("chat_messages")
+        .select("telegram_message_id")
+        .eq("session_id", session_id)
+        .not_.is_("telegram_message_id", "null")
+        .order("telegram_message_id", desc=False)
+        .limit(1)
+        .execute()
+    )
+    if response.data:
+        return response.data[0].get("telegram_message_id")
+    return None
+
+
+def save_imported_message(
+    session_id: str,
+    telegram_message_id: int,
+    role: str,
+    content: str,
+    turn_number: int,
+    media_type: str | None = None,
+    media_url: str | None = None,
+    mime_type: str | None = None,
+) -> bool:
+    supabase = get_supabase()
+    payload = {
+        "session_id": session_id,
+        "telegram_message_id": telegram_message_id,
+        "turn_number": turn_number,
+        "role": role,
+        "content": content,
+        "status": "done" if role == "assistant" else "waiting_human",
+        "source": "human" if role == "assistant" else "telegram",
+        "idioma": "en",
+        "categorias_detectadas": [],
+        "categorias_respondibles": [],
+        "sent_to_telegram": True if role == "assistant" else False,
+        "media_type": media_type,
+        "media_url": media_url,
+        "mime_type": mime_type,
+    }
+    try:
+        supabase.table("chat_messages").insert(payload).execute()
+        return True
+    except Exception as e:
+        print(f"[HISTORY] Skipped duplicate message {telegram_message_id}: {e}")
+        return False
+
+
+def get_test_session_by_id(session_id: str):
+    supabase = get_supabase()
+    response = (
+        supabase.table("test_sessions")
+        .select("*")
+        .eq("id", session_id)
+        .limit(1)
+        .execute()
+    )
+    return response.data[0] if response.data else None
+
+
+async def import_older_messages_for_session(
+    client, session_id: str, telegram_chat_id: str, count_to_import: int
+) -> int:
+    import time as _time
+
+    entity = await client.get_entity(int(telegram_chat_id))
+    oldest_known_id = get_oldest_imported_telegram_message_id(session_id)
+
+    collected = []
+    if oldest_known_id:
+        async for msg in client.iter_messages(entity, limit=count_to_import, max_id=int(oldest_known_id)):
+            collected.append(msg)
+    else:
+        async for msg in client.iter_messages(entity, limit=count_to_import):
+            collected.append(msg)
+
+    collected.reverse()
+    inserted = 0
+
+    for msg in collected:
+        turn_number = get_next_turn_number(session_id)
+        role = "assistant" if msg.out else "user"
+        media_type = None
+        media_url = None
+        mime_type = None
+        text = (msg.message or "").strip()
+
+        # Handle media
+        if msg.media:
+            try:
+                msg_media = msg.media
+                doc = getattr(msg_media, 'document', None)
+                doc_mime = (getattr(doc, 'mime_type', '') or '') if doc else ''
+
+                is_photo = hasattr(msg_media, 'photo')
+                is_sticker = False
+                is_voice = False
+                is_video = False
+
+                if doc:
+                    if doc_mime.startswith('image/'):
+                        is_photo = True
+                    if doc_mime == 'image/webp':
+                        is_sticker = True
+                    for attr in getattr(doc, 'attributes', []):
+                        cls = attr.__class__.__name__
+                        if cls == 'DocumentAttributeSticker':
+                            is_sticker = True
+                        if cls == 'DocumentAttributeAudio':
+                            is_voice = True
+                        if cls == 'DocumentAttributeVideo':
+                            is_video = True
+                    if doc_mime in ('audio/ogg', 'audio/mpeg', 'audio/mp4', 'audio/m4a', 'audio/wav'):
+                        is_voice = True
+                    if doc_mime.startswith('video/'):
+                        is_video = True
+
+                if is_sticker:
+                    mime = 'image/webp'
+                    ext = 'webp'
+                    folder = 'stickers'
+                    media_type = 'sticker'
+                    label = 'Sticker'
+                elif is_photo:
+                    mime = doc_mime or 'image/jpeg'
+                    if hasattr(msg_media, 'photo'):
+                        mime = 'image/jpeg'
+                    ext = 'jpg' if 'jpeg' in mime else mime.split('/')[-1]
+                    folder = 'images'
+                    media_type = 'image'
+                    label = 'Photo'
+                elif is_voice:
+                    mime = doc_mime or 'audio/ogg'
+                    ext = mime.split('/')[-1].split(';')[0] or 'ogg'
+                    folder = 'audio'
+                    media_type = 'audio'
+                    label = 'Voice message'
+                elif is_video:
+                    mime = doc_mime or 'video/mp4'
+                    ext = mime.split('/')[-1].split(';')[0] or 'mp4'
+                    folder = 'video'
+                    media_type = 'video'
+                    label = 'Video'
+                else:
+                    mime = None
+
+                if media_type and mime:
+                    media_bytes = await client.download_media(msg, bytes)
+                    ts = int(_time.time())
+                    storage_path = f"{folder}/{telegram_chat_id}_{msg.id}_{ts}.{ext}"
+                    media_url = upload_media_to_supabase_storage(media_bytes, storage_path, mime)
+                    mime_type = mime
+                    if not text:
+                        text = f"[{label}]"
+
+            except Exception as e:
+                print(f"[HISTORY] Could not process media for msg {msg.id}: {e}")
+
+        if not text and not media_type:
+            continue
+
+        ok = save_imported_message(
+            session_id=session_id,
+            telegram_message_id=int(msg.id),
+            role=role,
+            content=text or f"[{media_type or 'media'}]",
+            turn_number=turn_number,
+            media_type=media_type,
+            media_url=media_url,
+            mime_type=mime_type,
+        )
+        if ok:
+            inserted += 1
+
+    return inserted
+
+
+async def process_history_import_requests(client):
+    while True:
+        try:
+            pending = get_pending_history_import_requests(limit=5)
+            for item in pending:
+                request_id = item["id"]
+                session_id = item["session_id"]
+                count_to_import = item.get("count_to_import", 10) or 10
+
+                print(f"[HISTORY] Processing request {request_id} for session {session_id}")
+                update_history_import_request(request_id, "processing")
+
+                try:
+                    session = get_test_session_by_id(session_id)
+                    if not session:
+                        raise ValueError("Session not found")
+                    telegram_chat_id = session.get("telegram_chat_id")
+                    if not telegram_chat_id:
+                        raise ValueError("telegram_chat_id not found")
+
+                    inserted = await import_older_messages_for_session(
+                        client,
+                        session_id=session_id,
+                        telegram_chat_id=str(telegram_chat_id),
+                        count_to_import=count_to_import,
+                    )
+                    print(f"[HISTORY] Request {request_id} done | inserted={inserted}")
+                    update_history_import_request(request_id, "done")
+
+                except Exception as e:
+                    print(f"[HISTORY ERROR] Request {request_id}: {e}")
+                    update_history_import_request(request_id, "error", error_text=str(e))
+
+        except Exception as e:
+            print(f"[HISTORY LOOP ERROR] {e}")
+
+        await asyncio.sleep(3)
+
+
 async def main():
     print(f"[TELEGRAM] Starting worker for {PHONE}")
 
@@ -710,6 +954,7 @@ async def main():
         await asyncio.gather(
             client.run_until_disconnected(),
             send_pending_replies(),
+            process_history_import_requests(client),
         )
     except (KeyboardInterrupt, asyncio.CancelledError):
         print("[TELEGRAM] Worker stopped by user.")
