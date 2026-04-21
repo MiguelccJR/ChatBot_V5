@@ -245,6 +245,93 @@ def get_owner_telegram_id() -> str | None:
     )
     return response.data[0].get("value") if response.data else None
 
+def get_pending_history_import_requests(limit: int = 5):
+    supabase = get_supabase()
+    response = (
+        supabase.table("telegram_history_import_requests")
+        .select("*")
+        .eq("status", "pending")
+        .order("created_at")
+        .limit(limit)
+        .execute()
+    )
+    return response.data or []
+
+
+def update_history_import_request(request_id: int, status: str, error_text: str | None = None):
+    supabase = get_supabase()
+
+    payload = {
+        "status": status,
+        "error_text": error_text,
+    }
+
+    if status in ("done", "error"):
+        payload["processed_at"] = datetime.now(timezone.utc).isoformat()
+
+    response = (
+        supabase.table("telegram_history_import_requests")
+        .update(payload)
+        .eq("id", request_id)
+        .execute()
+    )
+    return response.data
+
+    def get_oldest_imported_telegram_message_id(session_id: str):
+    supabase = get_supabase()
+    response = (
+        supabase.table("chat_messages")
+        .select("telegram_message_id")
+        .eq("session_id", session_id)
+        .not_.is_("telegram_message_id", "null")
+        .order("telegram_message_id", desc=False)
+        .limit(1)
+        .execute()
+    )
+    if response.data:
+        return response.data[0].get("telegram_message_id")
+    return None
+
+    def save_imported_message(
+    session_id: str,
+    telegram_message_id: int,
+    role: str,
+    content: str,
+    turn_number: int,
+):
+    supabase = get_supabase()
+
+    payload = {
+        "session_id": session_id,
+        "telegram_message_id": telegram_message_id,
+        "turn_number": turn_number,
+        "role": role,
+        "content": content,
+        "status": "done" if role == "assistant" else "waiting_human",
+        "source": "human" if role == "assistant" else "telegram",
+        "idioma": "en",
+        "categorias_detectadas": [],
+        "categorias_respondibles": [],
+        "sent_to_telegram": True if role == "assistant" else False,
+    }
+
+    try:
+        supabase.table("chat_messages").insert(payload).execute()
+        return True
+    except Exception as e:
+        print(f"[HISTORY IMPORT] Skipped duplicated message {telegram_message_id}: {e}")
+        return False
+
+def get_test_session_by_id(session_id: str):
+    supabase = get_supabase()
+    response = (
+        supabase.table("test_sessions")
+        .select("*")
+        .eq("id", session_id)
+        .limit(1)
+        .execute()
+    )
+    return response.data[0] if response.data else None
 
 # ----------------------------
 # Archived chats sync
@@ -543,6 +630,7 @@ async def main():
         await asyncio.gather(
             client.run_until_disconnected(),
             send_pending_replies(),
+            process_history_import_requests(client),
         )
     except (KeyboardInterrupt, asyncio.CancelledError):
         print("[TELEGRAM] Worker stopped by user.")
@@ -550,6 +638,46 @@ async def main():
         await client.disconnect()
         print("[TELEGRAM] Disconnected cleanly.")
 
+async def process_history_import_requests(client):
+    while True:
+        try:
+            pending = get_pending_history_import_requests(limit=5)
+
+            for item in pending:
+                request_id = item["id"]
+                session_id = item["session_id"]
+                count_to_import = item.get("count_to_import", 10) or 10
+
+                print(f"[HISTORY IMPORT] Processing request {request_id} for session {session_id}")
+                update_history_import_request(request_id, "processing")
+
+                try:
+                    session = get_test_session_by_id(session_id)
+                    if not session:
+                        raise ValueError("Session not found")
+
+                    telegram_chat_id = session.get("telegram_chat_id")
+                    if not telegram_chat_id:
+                        raise ValueError("telegram_chat_id not found in session")
+
+                    inserted = await import_older_messages_for_session(
+                        client,
+                        session_id=session_id,
+                        telegram_chat_id=str(telegram_chat_id),
+                        count_to_import=count_to_import,
+                    )
+
+                    print(f"[HISTORY IMPORT] Request {request_id} done | inserted={inserted}")
+                    update_history_import_request(request_id, "done")
+
+                except Exception as e:
+                    print(f"[HISTORY IMPORT ERROR] Request {request_id}: {e}")
+                    update_history_import_request(request_id, "error", error_text=str(e))
+
+        except Exception as e:
+            print(f"[HISTORY IMPORT LOOP ERROR] {e}")
+
+        await asyncio.sleep(3)
 
 if __name__ == "__main__":
     try:
