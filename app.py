@@ -12,7 +12,8 @@ from db import (
     save_feedback,
     create_opener_request,
     get_latest_opener_request,
-    create_chat_message,
+    create_telegram_history_import_request,
+    get_latest_telegram_history_import_request,
 )
 
 st.set_page_config(page_title="Telegram Control Panel", layout="wide")
@@ -265,6 +266,16 @@ ultimo_pendiente = mensajes_pendientes[-1] if hay_pendiente else None
 if "pending_opener_type" not in st.session_state:
     st.session_state.pending_opener_type = None
 
+latest_history_import = None
+try:
+    latest_history_import = get_latest_telegram_history_import_request(session_id_activo)
+except Exception:
+    latest_history_import = None
+
+hay_import_pendiente = False
+if latest_history_import:
+    hay_import_pendiente = latest_history_import.get("status") in ("pending", "processing")
+
 latest_requested_opener = procesar_estado_opener(session_id_activo, st.session_state.pending_opener_type)
 hay_opener_pendiente = bool(latest_requested_opener and latest_requested_opener.get("status") in ("pending", "processing"))
 
@@ -426,6 +437,33 @@ else:
 # ----------------------------
 st.markdown("### Chat history")
 
+col_imp1, col_imp2 = st.columns([1, 3])
+
+with col_imp1:
+    if st.button("Import 10 older from Telegram", key=f"import_older_{session_id_activo}", use_container_width=True):
+        try:
+            create_telegram_history_import_request(
+                session_id=session_id_activo,
+                requested_by=st.session_state.get("auth_username", "normal_user"),
+                count_to_import=10,
+            )
+            st.success("Import request created")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error creating import request: {e}")
+
+with col_imp2:
+    if latest_history_import:
+        import_status = latest_history_import.get("status")
+        if import_status == "pending":
+            st.info("History import queued...")
+        elif import_status == "processing":
+            st.info("Importing older Telegram messages...")
+        elif import_status == "done":
+            st.caption("Last history import completed")
+        elif import_status == "error":
+            st.warning(f"Import error: {latest_history_import.get('error_text', 'unknown error')}")
+
 total_messages = len(db_chat_messages)
 shown_messages = db_chat_messages[-history_limit:] if db_chat_messages else []
 
@@ -499,6 +537,6 @@ else:
                         st.error(f"Error saving feedback: {e}")
 
 # Auto-refresh
-if hay_pendiente or hay_opener_pendiente:
+if hay_pendiente or hay_opener_pendiente or hay_import_pendiente:
     time.sleep(2)
     st.rerun()

@@ -378,3 +378,32 @@ def get_session_display_name(session: dict) -> str:
     if chat_id:
         return f"ID {chat_id}"
     return "Unknown"
+
+def create_telegram_history_import_request(session_id: str, requested_by: str = "streamlit", count_to_import: int = 10):
+    supabase = get_supabase()
+    response = (
+        supabase.table("telegram_history_import_requests")
+        .insert({
+            "session_id": session_id,
+            "requested_by": requested_by,
+            "status": "pending",
+            "count_to_import": count_to_import,
+        })
+        .execute()
+    )
+    return response.data[0]
+
+
+def get_latest_telegram_history_import_request(session_id: str):
+    supabase = get_supabase()
+    response = (
+        supabase.table("telegram_history_import_requests")
+        .select("*")
+        .eq("session_id", session_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if response.data:
+        return response.data[0]
+    return None
