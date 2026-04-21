@@ -81,6 +81,21 @@ def get_supabase():
 # Supabase helpers
 # ----------------------------
 
+def upload_media_to_supabase_storage(file_bytes: bytes, storage_path: str, content_type: str) -> str:
+    """Uploads media to Supabase Storage bucket 'chat-media' and returns public URL."""
+    supabase = get_supabase()
+    try:
+        supabase.storage.from_("chat-media").upload(
+            path=storage_path,
+            file=file_bytes,
+            file_options={"content-type": content_type, "upsert": "true"}
+        )
+    except Exception as e:
+        print(f"[STORAGE] Upload warning for {storage_path}: {e}")
+    public_url = supabase.storage.from_("chat-media").get_public_url(storage_path)
+    return public_url
+
+
 def get_session_by_telegram_id(telegram_chat_id: str) -> dict | None:
     supabase = get_supabase()
     response = (
