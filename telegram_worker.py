@@ -416,6 +416,8 @@ async def import_older_messages_for_session(
     collected.reverse()
     inserted = 0
 
+    print(f"[HISTORY] Found {len(collected)} messages to process")
+
     for msg in collected:
         turn_number = get_next_turn_number(session_id)
         role = "assistant" if msg.out else "user"
@@ -423,6 +425,8 @@ async def import_older_messages_for_session(
         media_url = None
         mime_type = None
         text = (msg.message or "").strip()
+        has_media = bool(msg.media)
+        print(f"[HISTORY] msg_id={msg.id} role={role} text={repr(text[:40])} has_media={has_media}")
 
         # Handle media
         if msg.media:
