@@ -359,7 +359,6 @@ def save_imported_message(
     media_type: str | None = None,
     media_url: str | None = None,
     mime_type: str | None = None,
-    telegram_date: str | None = None,
 ) -> bool:
     supabase = get_supabase()
     payload = {
@@ -377,7 +376,6 @@ def save_imported_message(
         "media_type": media_type,
         "media_url": media_url,
         "mime_type": mime_type,
-        "telegram_date": telegram_date,
     }
     try:
         supabase.table("chat_messages").insert(payload).execute()
@@ -504,7 +502,6 @@ async def import_older_messages_for_session(
         if not text and not media_type:
             continue
 
-        tg_date = msg.date.isoformat() if msg.date else None
         ok = save_imported_message(
             session_id=session_id,
             telegram_message_id=int(msg.id),
@@ -514,7 +511,6 @@ async def import_older_messages_for_session(
             media_type=media_type,
             media_url=media_url,
             mime_type=mime_type,
-            telegram_date=tg_date,
         )
         if ok:
             inserted += 1
@@ -918,9 +914,13 @@ async def main():
 
     async def notify_owner(client, msg, customer_chat_id: str):
         owner_id = get_owner_telegram_id()
-        if not owner_id:
-            print("[TELEGRAM] No owner_telegram_id configured — skipping notification")
+        print(f"[NOTIFY] owner_telegram_id from config: {repr(owner_id)}")
+
+        if not owner_id or not owner_id.strip():
+            print("[NOTIFY] No owner_telegram_id configured — skipping notification")
             return
+
+        owner_id_clean = owner_id.strip()
 
         cats = msg.get("categorias_detectadas") or []
         reason = next(
@@ -937,25 +937,32 @@ async def main():
             ).eq("telegram_chat_id", str(customer_chat_id)).limit(1).execute()
             if res.data:
                 session = res.data[0]
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[NOTIFY] Could not fetch session: {e}")
 
         name = ""
         if session:
             name = session.get("telegram_username") or session.get("telegram_first_name") or ""
 
         notification = (
-            f"⚠️ *A customer needs your attention*\n\n"
+            f"⚠️ A customer needs your attention\n\n"
             f"{'@' + name if name else 'Chat ID: ' + str(customer_chat_id)}\n"
-            f"Reason: _{reason or 'High intent detected'}_\n\n"
-            f"Open Telegram and reply to take over 💬"
+            f"Reason: {reason or 'High intent detected'}\n\n"
+            f"Open Telegram and reply to take over"
         )
 
+        print(f"[NOTIFY] Sending to owner_id={owner_id_clean}")
         try:
-            await client.send_message(int(owner_id), notification, parse_mode="markdown")
-            print(f"[TELEGRAM] Handoff notification sent to owner")
+            await client.send_message(int(owner_id_clean), notification)
+            print(f"[NOTIFY] Handoff notification sent successfully to {owner_id_clean}")
         except Exception as e:
-            print(f"[TELEGRAM] Could not notify owner: {e}")
+            print(f"[NOTIFY] Failed to send notification: {e}")
+            # Try sending as string in case int conversion fails
+            try:
+                await client.send_message(owner_id_clean, notification)
+                print(f"[NOTIFY] Sent as string successfully")
+            except Exception as e2:
+                print(f"[NOTIFY] Also failed as string: {e2}")
 
     print("[TELEGRAM] Worker running. Listening for messages...")
     try:
