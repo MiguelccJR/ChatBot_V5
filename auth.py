@@ -61,9 +61,23 @@ def render_sidebar_auth():
     with st.sidebar:
         st.subheader("Access")
         if is_logged_in():
-            st.success(f"✅ **{st.session_state.auth_username}** ({st.session_state.auth_role})")
+            st.success(f"Logged in as **{st.session_state.auth_username}** ({st.session_state.auth_role})")
             if st.button("Logout", use_container_width=True, key="logout_btn"):
                 logout()
+        else:
+            st.info("Normal mode active")
+            users = get_auth_users()
+            if users:
+                with st.expander("Admin login"):
+                    with st.form("login_form_shared", clear_on_submit=False):
+                        login_user = st.text_input("User")
+                        login_pass = st.text_input("Password", type="password")
+                        submitted = st.form_submit_button("Login as admin", use_container_width=True)
+                        if submitted:
+                            if login(login_user.strip(), login_pass):
+                                st.rerun()
+                            else:
+                                st.error("Invalid username or password")
 
 
 def require_admin():
@@ -86,4 +100,24 @@ def require_admin():
                         st.rerun()
                     else:
                         st.error("Invalid credentials or insufficient permissions")
+        st.stop()
+
+def login_gate():
+    """
+    Call at the top of every page.
+    Shows a login form and stops execution if not logged in.
+    """
+    init_auth()
+    if not is_logged_in():
+        st.markdown("## 🔐 Login required")
+        st.caption("Please log in to access the control panel.")
+        with st.form("login_gate_form", clear_on_submit=False):
+            login_user = st.text_input("Username")
+            login_pass = st.text_input("Password", type="password")
+            submitted = st.form_submit_button("Login", use_container_width=True)
+            if submitted:
+                if login(login_user.strip(), login_pass):
+                    st.rerun()
+                else:
+                    st.error("Invalid username or password")
         st.stop()

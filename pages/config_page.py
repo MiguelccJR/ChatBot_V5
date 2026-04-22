@@ -1,7 +1,23 @@
 ﻿import streamlit as st
 from db import get_bot_config, upsert_bot_config, delete_bot_config
+from auth import init_auth, is_logged_in, login, render_sidebar_auth
 
 st.set_page_config(page_title="Bot Configuration", layout="wide")
+init_auth()
+
+if not is_logged_in():
+    st.markdown("## 🔐 Login required")
+    with st.form("login_gate_config", clear_on_submit=False):
+        _u = st.text_input("Username")
+        _p = st.text_input("Password", type="password")
+        if st.form_submit_button("Login", use_container_width=True):
+            if login(_u.strip(), _p):
+                st.rerun()
+            else:
+                st.error("Invalid username or password")
+    st.stop()
+
+render_sidebar_auth()
 st.title("⚙️ Bot Configuration")
 st.caption("Edit prices, links and settings. Changes apply immediately.")
 
