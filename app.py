@@ -12,6 +12,8 @@ from db import (
     create_opener_request,
     get_latest_opener_request,
     create_chat_message,
+    create_telegram_history_import_request,
+    get_latest_telegram_history_import_request,
 )
 
 st.set_page_config(
@@ -91,6 +93,10 @@ def init_auth_state():
         st.session_state.auth_role = "user"
     if "manual_reply_text" not in st.session_state:
         st.session_state.manual_reply_text = ""
+    if "chat_version" not in st.session_state:
+        st.session_state.chat_version = 0
+    if "session_id_activo" not in st.session_state:
+        st.session_state.session_id_activo = None
 
 
 init_auth_state()
@@ -134,20 +140,17 @@ def cargar_sesiones(include_disabled: bool):
 
 
 def obtener_session_id_activo(sesiones):
+    if "session_id_activo" not in st.session_state:
+        st.session_state.session_id_activo = None
+
     ids = [s["id"] for s in sesiones]
 
     if not ids:
         st.session_state.session_id_activo = None
         return None
 
-    current = st.session_state.get("session_id_activo")
-
-    # Only auto-select first chat if nothing is selected yet
-    # Never auto-switch if current chat is still valid
-    if current is None or current not in ids:
-        # Only set if truly nothing selected — don't switch due to reorder
-        if current not in ids:
-            st.session_state.session_id_activo = ids[0]
+    if st.session_state.session_id_activo not in ids:
+        st.session_state.session_id_activo = ids[0]
 
     return st.session_state.session_id_activo
 
@@ -166,7 +169,19 @@ def procesar_estado_opener(session_id: str, opener_type: str | None):
 def fmt_datetime(value: str | None) -> str:
     if not value:
         return "-"
-    return value[:19].replace("T", " ")
+    try:
+        from datetime import datetime, timezone, timedelta
+        dt_str = value[:19].replace("T", " ")
+        dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        year = dt.year
+        march_last_sunday = max(datetime(year, 3, day) for day in range(25, 32) if datetime(year, 3, day).weekday() == 6)
+        oct_last_sunday = max(datetime(year, 10, day) for day in range(25, 32) if datetime(year, 10, day).weekday() == 6)
+        naive_dt = dt.replace(tzinfo=None)
+        offset = timedelta(hours=2) if march_last_sunday <= naive_dt < oct_last_sunday else timedelta(hours=1)
+        local_dt = dt + offset
+        return local_dt.strftime("%d/%m %H:%M")
+    except Exception:
+        return value[:19].replace("T", " ")
 
 
 def get_message_display_info(mensaje: dict) -> tuple[str, str, str]:
@@ -325,20 +340,22 @@ with st.sidebar:
                 display = get_session_display_name(s)
                 mapa_labels[s["id"]] = f"{icon} {display}"
 
-            current_index = 0
-            if session_id_activo in opciones:
-                current_index = opciones.index(session_id_activo)
-
             elegido = st.radio(
                 "Select chat",
                 options=opciones,
-                index=current_index,
-                format_func=lambda sid: mapa_labels[sid],
-                key="chat_selector_radio",
+                index=opciones.index(session_id_activo) if session_id_activo in opciones else 0,
+                format_func=lambda sid: mapa_labels[sid]
             )
 
             if elegido != st.session_state.session_id_activo:
+                keys_to_delete = [
+                    k for k in list(st.session_state.keys())
+                    if k not in ("auth_username", "auth_role", "session_id_activo", "chat_version")
+                ]
+                for key in keys_to_delete:
+                    del st.session_state[key]
                 st.session_state.session_id_activo = elegido
+                st.session_state.chat_version = st.session_state.get("chat_version", 0) + 1
                 st.rerun()
 
         if st.button("Refresh panel", use_container_width=True):
@@ -381,6 +398,20 @@ try:
     db_chat_messages = get_chat_messages(session_id_activo)
 except Exception as e:
     st.error(f"Error loading chat history: {e}")
+
+# Version key — forces widget re-render when switching chats
+cv = f"{session_id_activo}_{st.session_state.get('chat_version', 0)}"
+
+latest_history_import = None
+try:
+    latest_history_import = get_latest_telegram_history_import_request(session_id_activo)
+except Exception:
+    pass
+
+hay_import_pendiente = bool(
+    latest_history_import and
+    latest_history_import.get("status") in ("pending", "processing")
+)
 
 mensajes_pendientes = [
     m for m in db_chat_messages
@@ -591,51 +622,108 @@ else:
 
 
 # ----------------------------
-# Chat history
+# Chat history (most recent first)
 # ----------------------------
 st.markdown("### Chat history")
+
+col_imp1, col_imp2 = st.columns([1, 3])
+with col_imp1:
+    if st.button("⬆️ Import 10 older", key=f"import_{cv}", use_container_width=True):
+        try:
+            create_telegram_history_import_request(
+                session_id=session_id_activo,
+                requested_by=st.session_state.get("auth_username", "user"),
+                count_to_import=10,
+            )
+            st.success("Import queued")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error: {e}")
+with col_imp2:
+    if latest_history_import:
+        imp_status = latest_history_import.get("status")
+        if imp_status == "pending":
+            st.info("Import queued...")
+        elif imp_status == "processing":
+            st.info("Importing older messages...")
+        elif imp_status == "done":
+            st.caption("Last import completed ✓")
+        elif imp_status == "error":
+            st.warning(f"Import error: {latest_history_import.get('error_text', '')}")
+
+st.caption("Most recent messages at the top")
+
+MEDIA_PLACEHOLDERS = {
+    "[Video received while disabled]",
+    "[Photo received while disabled]",
+    "[Sticker received while disabled]",
+    "[Voice message received while disabled]",
+    "[Customer sent a photo]",
+    "[Customer sent a sticker]",
+    "[Media received while disabled]",
+    "[Media received while disabled — upload failed]",
+}
 
 if not db_chat_messages:
     st.info("No messages yet for this chat.")
 else:
-    for i, mensaje in enumerate(db_chat_messages[-100:]):
+    mensajes_mostrar = list(reversed(db_chat_messages[-100:]))
+
+    for i, mensaje in enumerate(mensajes_mostrar):
         role = mensaje["role"]
         source = mensaje.get("source", "")
         status = mensaje.get("status", "")
         turn_number = mensaje.get("turn_number", 0)
+        media_type = (mensaje.get("media_type") or "").strip()
+        media_url = (mensaje.get("media_url") or "").strip()
+        message_id = mensaje.get("id", f"{turn_number}_{i}")
+        text_content = (mensaje.get("content") or "").strip()
 
         chat_role, avatar, label = get_message_display_info(mensaje)
 
         with st.chat_message(chat_role, avatar=avatar):
-            st.markdown(mensaje["content"])
 
-            meta = [label]
+            if media_type and media_url:
+                if media_type in ("image", "sticker"):
+                    try:
+                        st.image(media_url)
+                    except Exception:
+                        st.caption(f"📷 {media_url}")
+                elif media_type == "audio":
+                    try:
+                        st.audio(media_url)
+                    except Exception:
+                        st.caption(f"🎵 {media_url}")
+                elif media_type == "video":
+                    try:
+                        st.video(media_url)
+                    except Exception:
+                        st.caption(f"🎬 {media_url}")
 
-            if source:
-                meta.append(f"source={source}")
+            is_placeholder = text_content in MEDIA_PLACEHOLDERS or text_content.startswith("[Voice message]:")
+            if text_content and not (media_type and is_placeholder):
+                st.markdown(text_content)
+
+            # Use telegram_date if available, else created_at
+            date_to_show = mensaje.get("telegram_date") or mensaje.get("created_at")
+            meta = [label, fmt_datetime(date_to_show)]
             if status:
                 meta.append(f"status={status}")
-            if turn_number is not None:
-                meta.append(f"turn={turn_number}")
-
-            st.caption(" | ".join(meta))
+            st.caption(" | ".join(m for m in meta if m and m != "-"))
 
             if role == "assistant" and source == "local_ai":
-                unique_id = f"{session_id_activo}_{turn_number}_{i}"
-
+                unique_id = f"{cv}_{message_id}"
                 rating = st.radio(
                     "Rate this reply",
                     options=["Good", "Regular", "Bad"],
                     horizontal=True,
                     key=f"rating_{unique_id}"
                 )
-
                 comment = st.text_input(
                     "Optional comment",
                     key=f"comment_{unique_id}",
                     placeholder="What sounds good or wrong here?"
                 )
-
                 if st.button("Save feedback", key=f"save_{unique_id}"):
                     try:
                         save_feedback(
@@ -653,6 +741,6 @@ else:
 # ----------------------------
 # Auto-refresh
 # ----------------------------
-if hay_pendiente or hay_opener_pendiente:
+if hay_pendiente or hay_opener_pendiente or hay_import_pendiente:
     time.sleep(2)
     st.rerun()
