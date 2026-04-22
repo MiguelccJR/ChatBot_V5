@@ -6,7 +6,21 @@ from db import get_telegram_sessions, get_session_display_name, set_session_cont
 st.set_page_config(page_title="Telegram Chats", layout="wide")
 init_auth()
 
-# Hide this page from non-logged-in users in sidebar — handled by showing nothing
+# Login gate
+if not is_logged_in():
+    st.markdown("## 🔐 Login required")
+    from auth import login, get_auth_users
+    with st.form("login_gate_tcp", clear_on_submit=False):
+        login_user = st.text_input("Username")
+        login_pass = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Login", use_container_width=True)
+        if submitted:
+            if login(login_user.strip(), login_pass):
+                st.rerun()
+            else:
+                st.error("Invalid username or password")
+    st.stop()
+
 render_sidebar_auth()
 
 st.title("💬 Telegram Chats")
@@ -24,7 +38,11 @@ if time.time() - st.session_state.last_refresh_tcp > 10:
     st.rerun()
 
 try:
+    # Admin sees all modes including disabled
+    # Normal user sees bot and human only
     sessions = get_telegram_sessions(include_disabled=is_admin())
+    if not is_admin():
+        sessions = [s for s in sessions if s.get("control_mode") in ("bot", "human")]
 except Exception as e:
     st.error(f"Error loading sessions: {e}")
     st.stop()

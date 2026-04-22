@@ -245,6 +245,24 @@ def queue_manual_reply(session_id: str, messages: list, text: str, control_mode:
 # ----------------------------
 # Sidebar auth
 # ----------------------------
+# ----------------------------
+# Login gate — show nothing until logged in
+# ----------------------------
+if not is_logged_in():
+    st.markdown("## 🔐 Login required")
+    st.caption("Please log in to access the control panel.")
+
+    with st.form("login_gate", clear_on_submit=False):
+        login_user = st.text_input("Username")
+        login_pass = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Login", use_container_width=True)
+        if submitted:
+            if login(login_user.strip(), login_pass):
+                st.rerun()
+            else:
+                st.error("Invalid username or password")
+    st.stop()
+
 with st.sidebar:
     st.subheader("Access")
 
@@ -252,23 +270,6 @@ with st.sidebar:
         st.success(f"Logged in as **{st.session_state.auth_username}** ({st.session_state.auth_role})")
         if st.button("Logout", use_container_width=True):
             logout()
-    else:
-        st.info("Normal mode active")
-        st.caption("Disabled chats stay hidden unless you log in as admin.")
-
-        if AUTH_USERS:
-            with st.expander("Admin login"):
-                with st.form("login_form", clear_on_submit=False):
-                    login_user = st.text_input("User")
-                    login_pass = st.text_input("Password", type="password")
-                    login_submit = st.form_submit_button("Login as admin", use_container_width=True)
-                    if login_submit:
-                        if login(login_user.strip(), login_pass):
-                            st.rerun()
-                        else:
-                            st.error("Invalid username or password")
-        else:
-            st.warning("Admin login is not configured. Check .streamlit/secrets.toml")
 
 
 

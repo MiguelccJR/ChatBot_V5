@@ -61,23 +61,9 @@ def render_sidebar_auth():
     with st.sidebar:
         st.subheader("Access")
         if is_logged_in():
-            st.success(f"Logged in as **{st.session_state.auth_username}** ({st.session_state.auth_role})")
+            st.success(f"✅ **{st.session_state.auth_username}** ({st.session_state.auth_role})")
             if st.button("Logout", use_container_width=True, key="logout_btn"):
                 logout()
-        else:
-            st.info("Normal mode active")
-            users = get_auth_users()
-            if users:
-                with st.expander("Admin login"):
-                    with st.form("login_form_shared", clear_on_submit=False):
-                        login_user = st.text_input("User")
-                        login_pass = st.text_input("Password", type="password")
-                        submitted = st.form_submit_button("Login as admin", use_container_width=True)
-                        if submitted:
-                            if login(login_user.strip(), login_pass):
-                                st.rerun()
-                            else:
-                                st.error("Invalid username or password")
 
 
 def require_admin():
