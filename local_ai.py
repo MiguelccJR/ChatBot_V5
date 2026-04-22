@@ -122,9 +122,17 @@ Rules:
 
 # Keywords that always force handoff before AI classification
 EXPLICIT_HANDOFF_KEYWORDS = [
+    # English
     "pussy", "cock", "dick", "naked", "nude", "masturbat",
     "cum", "orgasm", "sex video", "fuck", "blowjob", "fingering",
     "squirt", "anal", "dildo", "strip naked",
+    # Spanish
+    "polla", "coño", "follar", "correrse", "orgasmo", "desnuda",
+    "desnudo", "masturb", "paja", "mamada", "corrida", "sexo",
+    "video sexual", "tetas", "culo", "consolador", "vibrador",
+    # Russian
+    "хуй", "пизда", "ебать", "кончить", "оргазм", "голая",
+    "мастурб", "минет", "кончила", "секс видео",
 ]
 
 
@@ -234,6 +242,29 @@ def parece_analisis_o_prompt(texto: str) -> bool:
         "here is the reply:",
         "my reply:",
         "the reply is:",
+        "is this too cold",
+        "maybe add something",
+        "okay, combining",
+        "let me try",
+        "too formal",
+        "too casual",
+        "combining:",
+        "let's combine",
+        "let me combine",
+        "option 1",
+        "option 2",
+        "version 1",
+        "version 2",
+        "draft:",
+        "attempt:",
+        "here's one",
+        "how about:",
+        "something like:",
+        "maybe something like",
+        "i could say",
+        "i'll say",
+        "going with",
+        "keeping it",
     ]
 
     return any(b in t for b in bloqueos)

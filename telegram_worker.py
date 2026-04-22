@@ -557,6 +557,75 @@ async def process_history_import_requests(client):
         await asyncio.sleep(3)
 
 
+# Track sessions we already notified to avoid duplicates
+_notified_handoffs: set[str] = set()
+
+async def poll_handoff_notifications(client):
+    """Polls for sessions that switched to human mode and notifies owner."""
+    global _notified_handoffs
+    while True:
+        try:
+            owner_id = get_owner_telegram_id()
+            if owner_id and owner_id.strip():
+                supabase = get_supabase()
+                # Find sessions in human mode with a recent handoff_since
+                res = supabase.table("test_sessions").select(
+                    "id, telegram_chat_id, telegram_username, telegram_first_name, handoff_reason, handoff_since"
+                ).eq("control_mode", "human").eq("platform", "telegram").execute()
+
+                for session in (res.data or []):
+                    session_id = session["id"]
+                    handoff_since = session.get("handoff_since")
+                    if not handoff_since:
+                        continue
+
+                    # Only notify if recent (last 30 seconds) and not already notified
+                    notify_key = f"{session_id}_{handoff_since}"
+                    if notify_key in _notified_handoffs:
+                        continue
+
+                    from datetime import datetime, timezone, timedelta
+                    try:
+                        dt = datetime.fromisoformat(handoff_since.replace("Z", "+00:00"))
+                        if datetime.now(timezone.utc) - dt > timedelta(seconds=30):
+                            _notified_handoffs.add(notify_key)
+                            continue
+                    except Exception:
+                        continue
+
+                    # Send notification
+                    name = session.get("telegram_username") or session.get("telegram_first_name") or ""
+                    chat_id = session.get("telegram_chat_id") or ""
+                    reason = session.get("handoff_reason") or "Handoff triggered"
+
+                    notification = (
+                        f"⚠️ A customer needs your attention
+
+"
+                        f"{'@' + name if name else 'Chat ID: ' + str(chat_id)}
+"
+                        f"Reason: {reason}
+
+"
+                        f"Open Telegram and reply to take over"
+                    )
+
+                    try:
+                        await client.send_message(int(owner_id.strip()), notification)
+                        print(f"[NOTIFY] Handoff notification sent for session {session_id}")
+                        _notified_handoffs.add(notify_key)
+                        # Clean up old entries
+                        if len(_notified_handoffs) > 200:
+                            _notified_handoffs = set(list(_notified_handoffs)[-100:])
+                    except Exception as e:
+                        print(f"[NOTIFY] Failed: {e}")
+
+        except Exception as e:
+            print(f"[NOTIFY POLL ERROR] {e}")
+
+        await asyncio.sleep(5)
+
+
 async def main():
     print(f"[TELEGRAM] Starting worker for {PHONE}")
 
@@ -902,6 +971,7 @@ async def main():
                             for c in cats if isinstance(c, dict)
                         )
                         if handoff:
+                            print(f"[NOTIFY] Handoff detected in message, notifying owner...")
                             await notify_owner(client, msg, telegram_chat_id)
 
                     except Exception as e:
@@ -970,6 +1040,7 @@ async def main():
             client.run_until_disconnected(),
             send_pending_replies(),
             process_history_import_requests(client),
+            poll_handoff_notifications(client),
         )
     except (KeyboardInterrupt, asyncio.CancelledError):
         print("[TELEGRAM] Worker stopped by user.")
