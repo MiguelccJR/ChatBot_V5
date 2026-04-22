@@ -1,20 +1,19 @@
 ﻿import time
 import streamlit as st
-from auth import init_auth, is_admin, is_logged_in, login, render_sidebar_auth
+from auth import login_gate, is_admin, render_sidebar_auth
 from db import get_telegram_sessions, get_session_display_name, set_session_control_mode
 
 st.set_page_config(page_title="Telegram Chats", layout="wide")
-init_auth()
-
-# Hide this page from non-logged-in users in sidebar — handled by showing nothing
+login_gate()
 render_sidebar_auth()
 
 st.title("💬 Telegram Chats")
 st.caption("Manage which chats the bot responds to.")
 
-# Auto-refresh
+# Auto-refresh every 10 seconds
 if "last_refresh_tcp" not in st.session_state:
     st.session_state.last_refresh_tcp = time.time()
+
 col_r1, col_r2 = st.columns([1, 4])
 with col_r1:
     if st.button("🔄 Refresh", use_container_width=True):
@@ -24,7 +23,8 @@ if time.time() - st.session_state.last_refresh_tcp > 10:
     st.rerun()
 
 try:
-    sessions = get_telegram_sessions(include_disabled=is_admin())
+    # All logged-in users see all chats including disabled
+    sessions = get_telegram_sessions(include_disabled=True)
 except Exception as e:
     st.error(f"Error loading sessions: {e}")
     st.stop()
@@ -34,7 +34,7 @@ if not sessions:
     st.stop()
 
 MODE_COLORS = {"bot": "🟢", "human": "🟡", "disabled": "🔴"}
-MODE_OPTIONS = ["all", "bot", "human"] + (["disabled"] if is_admin() else [])
+MODE_OPTIONS = ["all", "bot", "human", "disabled"]
 
 filter_mode = st.selectbox(
     "Filter by mode",
@@ -93,7 +93,7 @@ for session in sessions:
                 if st.button("🟡 Human mode", key=f"human_{session_id}", use_container_width=True):
                     set_mode(session_id, "human")
                     st.rerun()
-            if is_admin() and mode != "disabled":
+            if mode != "disabled":
                 if st.button("🔴 Disable", key=f"disable_{session_id}", use_container_width=True):
                     set_mode(session_id, "disabled")
                     st.rerun()

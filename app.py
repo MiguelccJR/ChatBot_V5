@@ -21,6 +21,9 @@ st.set_page_config(
     layout="wide"
 )
 
+from auth import login_gate as _login_gate
+_login_gate()
+
 st.title("Telegram Control Panel")
 st.caption("Viewer and control panel for real Telegram chats")
 
@@ -100,20 +103,6 @@ def init_auth_state():
 
 
 init_auth_state()
-
-# Login gate — block access until authenticated
-if not is_logged_in():
-    st.markdown("## 🔐 Login required")
-    st.caption("Please log in to access the control panel.")
-    with st.form("login_gate_app", clear_on_submit=False):
-        _u = st.text_input("Username")
-        _p = st.text_input("Password", type="password")
-        if st.form_submit_button("Login", use_container_width=True):
-            if login(_u.strip(), _p):
-                st.rerun()
-            else:
-                st.error("Invalid username or password")
-    st.stop()
 
 
 def is_admin() -> bool:
