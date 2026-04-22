@@ -159,7 +159,6 @@ def save_incoming_message(
     *,
     status: str = "pending_ai",
     error_text: str | None = None,
-    telegram_date: str | None = None,
 ):
     supabase = get_supabase()
     supabase.table("chat_messages").insert({
@@ -173,7 +172,6 @@ def save_incoming_message(
         "categorias_detectadas": [],
         "categorias_respondibles": [],
         "error_text": error_text,
-        "telegram_date": telegram_date,
     }).execute()
 
 
@@ -212,7 +210,6 @@ def save_incoming_media_message(
     *,
     status: str = "pending_ai",
     error_text: str | None = None,
-    telegram_date: str | None = None,
 ):
     """Saves a message with media (image, audio, video, sticker) stored in Supabase Storage."""
     supabase = get_supabase()
@@ -230,7 +227,6 @@ def save_incoming_media_message(
         "media_type": media_type,
         "media_url": media_url,
         "mime_type": mime_type,
-        "telegram_date": telegram_date,
     }).execute()
 
 
@@ -363,6 +359,7 @@ def save_imported_message(
     media_type: str | None = None,
     media_url: str | None = None,
     mime_type: str | None = None,
+    telegram_date: str | None = None,
 ) -> bool:
     supabase = get_supabase()
     payload = {
@@ -380,6 +377,7 @@ def save_imported_message(
         "media_type": media_type,
         "media_url": media_url,
         "mime_type": mime_type,
+        "telegram_date": telegram_date,
     }
     try:
         supabase.table("chat_messages").insert(payload).execute()
@@ -506,6 +504,7 @@ async def import_older_messages_for_session(
         if not text and not media_type:
             continue
 
+        tg_date = msg.date.isoformat() if msg.date else None
         ok = save_imported_message(
             session_id=session_id,
             telegram_message_id=int(msg.id),
@@ -515,6 +514,7 @@ async def import_older_messages_for_session(
             media_type=media_type,
             media_url=media_url,
             mime_type=mime_type,
+            telegram_date=tg_date,
         )
         if ok:
             inserted += 1
@@ -709,14 +709,12 @@ async def main():
         if control_mode == "human":
             if text:
                 turn_number = get_next_turn_number(session_id)
-                tg_date = event.message.date.isoformat() if event.message.date else None
                 save_incoming_message(
                     session_id,
                     text,
                     turn_number,
                     status="waiting_human",
                     error_text="Waiting for human reply",
-                    telegram_date=tg_date,
                 )
             print(f"[TELEGRAM] Chat in HUMAN mode — saved, not processing")
             return
@@ -744,8 +742,7 @@ async def main():
                     if transcription:
                         text = f"[Voice message]: {transcription}"
                         turn_number = get_next_turn_number(session_id)
-                        tg_date = event.message.date.isoformat() if event.message.date else None
-                        save_incoming_message(session_id, text, turn_number, telegram_date=tg_date)
+                        save_incoming_message(session_id, text, turn_number)
                         print(f"[TELEGRAM] Voice transcribed and saved | session={session_id}")
                         return
                     else:
@@ -780,11 +777,9 @@ async def main():
                     storage_path = f"images/{chat_id}_{int(__import__('time').time())}.{ext}"
                     media_url = upload_media_to_supabase_storage(img_bytes, storage_path, doc_mime)
                     turn_number = get_next_turn_number(session_id)
-                    tg_date = event.message.date.isoformat() if event.message.date else None
                     save_incoming_media_message(
                         session_id, "[Customer sent a photo]", turn_number,
-                        media_type="image", media_url=media_url, mime_type=doc_mime,
-                        telegram_date=tg_date,
+                        media_type="image", media_url=media_url, mime_type=doc_mime
                     )
                     print(f"[TELEGRAM] Photo uploaded to storage | session={session_id}")
                     return
@@ -808,11 +803,9 @@ async def main():
                     storage_path = f"stickers/{chat_id}_{int(__import__('time').time())}.webp"
                     media_url = upload_media_to_supabase_storage(sticker_bytes, storage_path, 'image/webp')
                     turn_number = get_next_turn_number(session_id)
-                    tg_date = event.message.date.isoformat() if event.message.date else None
                     save_incoming_media_message(
                         session_id, "[Customer sent a sticker]", turn_number,
-                        media_type="sticker", media_url=media_url, mime_type="image/webp",
-                        telegram_date=tg_date,
+                        media_type="sticker", media_url=media_url, mime_type="image/webp"
                     )
                     print(f"[TELEGRAM] Sticker uploaded | session={session_id}")
                     return
@@ -835,8 +828,7 @@ async def main():
             return
 
         turn_number = get_next_turn_number(session_id)
-        tg_date = event.message.date.isoformat() if event.message.date else None
-        save_incoming_message(session_id, text, turn_number, telegram_date=tg_date)
+        save_incoming_message(session_id, text, turn_number)
         print(f"[TELEGRAM] Saved as pending_ai | session={session_id}")
 
     # ----------------------------
