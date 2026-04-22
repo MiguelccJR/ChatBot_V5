@@ -12,9 +12,10 @@ CATEGORY_LABELS = {
     "price": "💰 Prices",
     "link": "🔗 Links",
     "setting": "⚙️ Settings",
+    "persona": "🧍 Persona",
 }
 
-CATEGORY_OPTIONS = ["price", "link", "setting"]
+CATEGORY_OPTIONS = ["price", "link", "setting", "persona"]
 
 # ----------------------------
 # Load all config

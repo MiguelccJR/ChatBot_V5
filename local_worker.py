@@ -68,27 +68,16 @@ def mover_grupo_a_espera_humana(grupo, reason: str = ""):
     print(f"[HANDOFF] Group {ids} moved to waiting_human | reason={motivo}")
 
 
-def construir_historial_corto(session_id: str, hasta_message_id: int | None = None, limite: int = 6, desde_fecha: str | None = None):
+def construir_historial_corto(session_id: str, hasta_message_id: int | None = None, limite: int = 6):
     mensajes = get_chat_messages(session_id)
-
     if hasta_message_id is not None:
         mensajes = [m for m in mensajes if int(m.get("id", 0)) < int(hasta_message_id)]
-
-    # Ignore messages before the bot was activated (disabled -> bot transition)
-    if desde_fecha:
-        dt_desde = parse_dt(desde_fecha)
-        if dt_desde:
-            mensajes = [m for m in mensajes if parse_dt(m.get("created_at")) and parse_dt(m.get("created_at")) >= dt_desde]
 
     historial = []
     for m in mensajes:
         role = m.get("role", "user")
         content = (m.get("content") or "").strip()
         if not content:
-            continue
-        # Skip monitoring messages saved while disabled
-        error_text = (m.get("error_text") or "")
-        if "ignored_disabled_chat" in error_text or "Disabled chat monitored only" in error_text:
             continue
         historial.append(f"{role}: {content}")
 
@@ -136,6 +125,28 @@ def extraer_imagen_del_mensaje(grupo: list) -> str | None:
                 if isinstance(cat, dict) and "image_b64" in cat:
                     return cat["image_b64"]
     return None
+
+
+def construir_persona_texto(config: dict) -> str:
+    """Builds a persona description from config for the AI system prompt."""
+    name = config.get("name", "")
+    age = config.get("age", "")
+    location = config.get("location", "")
+    lifestyle = config.get("lifestyle", "")
+    personality = config.get("personality", "")
+
+    parts = []
+    if name:
+        parts.append(f"Your name is {name}.")
+    if age:
+        parts.append(f"You are {age} years old.")
+    if location:
+        parts.append(f"You are from {location}.")
+    if lifestyle:
+        parts.append(lifestyle)
+    if personality:
+        parts.append(f"Your personality: {personality}.")
+    return " ".join(parts)
 
 
 def construir_precios_texto(config: dict) -> str:
@@ -186,25 +197,13 @@ def procesar_mensaje_o_grupo(grupo):
     try:
         config = get_config_cached()
         precios_texto = construir_precios_texto(config)
+        persona_texto = construir_persona_texto(config)
         handoff_message = config.get("handoff_message", "Give me just a sec, let me check that for you 😊")
-
-        # Find when bot was activated: earliest message with status pending_ai or done
-        # that is NOT a disabled-monitoring message. This marks the start of the active session.
-        todos_mensajes = get_chat_messages(session_id)
-        bot_activated_since = None
-        for m in todos_mensajes:
-            et = (m.get("error_text") or "")
-            if "ignored_disabled_chat" in et or "Disabled chat monitored only" in et:
-                continue
-            if m.get("status") in ("pending_ai", "processing", "done", "waiting_human") and m.get("source") == "telegram":
-                bot_activated_since = m.get("created_at")
-                break
 
         historial_corto = construir_historial_corto(
             session_id=session_id,
             hasta_message_id=first_message_id,
-            limite=HISTORY_LIMIT,
-            desde_fecha=bot_activated_since,
+            limite=HISTORY_LIMIT
         )
 
         textos = [(m.get("content") or "").strip() for m in grupo]
@@ -263,6 +262,7 @@ def procesar_mensaje_o_grupo(grupo):
                 estado_cliente="chatting",
                 precios_texto=precios_texto,
                 imagen_b64=imagen_b64,
+                persona_texto=persona_texto,
             )
 
         print(f"[DEBUG] Raw final reply: {repr(respuesta)}")
