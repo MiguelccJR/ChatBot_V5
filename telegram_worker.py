@@ -599,14 +599,11 @@ async def poll_handoff_notifications(client):
                     reason = session.get("handoff_reason") or "Handoff triggered"
 
                     notification = (
-                        f"⚠️ A customer needs your attention
-
-"
-                        f"{'@' + name if name else 'Chat ID: ' + str(chat_id)}
-"
-                        f"Reason: {reason}
-
-"
+                        f"⚠️ A customer needs your attention"                        
+                        f"{'@' + name if name else 'Chat ID: ' + str(chat_id)}"
+                            
+                        f"Reason: {reason}"
+                            
                         f"Open Telegram and reply to take over"
                     )
 
