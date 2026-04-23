@@ -896,54 +896,49 @@ async def main():
                             break
 
             if is_video_msg:
-                print(f"[TELEGRAM] Video from {chat_id} — checking size")
+                doc = msg_media.document
+                file_size = getattr(doc, 'size', 0) or 0
+                size_mb = file_size / (1024 * 1024)
+                doc_mime_v = getattr(doc, 'mime_type', '') or 'video/mp4'
+                ext_v = doc_mime_v.split('/')[-1].split(';')[0] or 'mp4'
+                import time as _tv
+                ts_v = int(_tv.time())
+                filename_v = f"{chat_id}_{ts_v}.{ext_v}"
+                tg_date_v = event.message.date.isoformat() if event.message.date else None
+
+                duration_v = 0
+                for attr in getattr(doc, 'attributes', []):
+                    if attr.__class__.__name__ == 'DocumentAttributeVideo':
+                        duration_v = getattr(attr, 'duration', 0) or 0
+
+                print(f"[TELEGRAM] Video from {chat_id} — {size_mb:.1f}MB")
+
                 try:
-                    doc = msg_media.document
-                    file_size = getattr(doc, 'size', 0) or 0
-                    doc_mime_v = getattr(doc, 'mime_type', '') or 'video/mp4'
-                    ext_v = doc_mime_v.split('/')[-1].split(';')[0] or 'mp4'
-                    ts_v = int(__import__('time').time())
-                    filename_v = f"{chat_id}_{ts_v}.{ext_v}"
-                    tg_date_v = event.message.date.isoformat() if event.message.date else None
+                    if file_size > 0 and file_size > SUPABASE_MAX_BYTES:
+                        # Too large for memory — download directly to disk
+                        print(f"[TELEGRAM] Large video ({size_mb:.0f}MB) — downloading directly to disk")
+                        local_folder = ensure_local_dir("videos")
+                        local_path_v = os.path.join(local_folder, filename_v)
 
-                    # Get duration if available
-                    duration_v = 0
-                    for attr in getattr(doc, 'attributes', []):
-                        if attr.__class__.__name__ == 'DocumentAttributeVideo':
-                            duration_v = getattr(attr, 'duration', 0) or 0
+                        # Download directly to file (no RAM usage)
+                        await client.download_media(event.message, file=local_path_v)
+                        print(f"[TELEGRAM] Large video saved to {local_path_v}")
 
-                    video_bytes = await client.download_media(event.message, bytes)
-                    actual_size = len(video_bytes)
-                    size_mb = actual_size / (1024 * 1024)
-
-                    if actual_size <= SUPABASE_MAX_BYTES:
-                        # Small enough — upload to Supabase Storage
-                        storage_path_v = f"video/{filename_v}"
-                        media_url_v = upload_media_to_supabase_storage(video_bytes, storage_path_v, doc_mime_v)
-                        turn_number = get_next_turn_number(session_id)
-                        save_incoming_media_message(
-                            session_id, "[Customer sent a video]", turn_number,
-                            media_type="video", media_url=media_url_v, mime_type=doc_mime_v,
-                            telegram_date=tg_date_v,
-                        )
-                        print(f"[TELEGRAM] Video ({size_mb:.1f}MB) uploaded to storage")
-                    else:
-                        # Too large — save locally + thumbnail to storage
-                        local_path = save_file_locally(video_bytes, "videos", filename_v)
-
-                        # Try to get thumbnail
+                        # Try to get thumbnail (small, safe to do in memory)
                         thumb_url = None
                         try:
-                            thumb_bytes = await client.download_media(event.message.media.document.thumbs[-1] if hasattr(event.message.media.document, 'thumbs') and event.message.media.document.thumbs else event.message, bytes)
-                            if thumb_bytes and len(thumb_bytes) < SUPABASE_MAX_BYTES:
-                                thumb_path = f"video_thumbs/{chat_id}_{ts_v}.jpg"
-                                thumb_url = upload_media_to_supabase_storage(thumb_bytes, thumb_path, 'image/jpeg')
+                            thumbs = getattr(doc, 'thumbs', None)
+                            if thumbs:
+                                thumb_bytes = await client.download_media(event.message, bytes, thumb=-1)
+                                if thumb_bytes:
+                                    thumb_path = f"video_thumbs/{chat_id}_{ts_v}.jpg"
+                                    thumb_url = upload_media_to_supabase_storage(thumb_bytes, thumb_path, 'image/jpeg')
+                                    print(f"[TELEGRAM] Thumbnail saved to storage")
                         except Exception as te:
                             print(f"[TELEGRAM] Could not get thumbnail: {te}")
 
                         duration_str = f"{int(duration_v//60)}:{int(duration_v%60):02d}" if duration_v else "unknown"
-                        msg_text = f"[Video - {size_mb:.0f}MB, duration: {duration_str}, saved locally: {os.path.basename(local_path)}]"
-
+                        msg_text = f"[Video - {size_mb:.0f}MB, duration: {duration_str}, saved locally: {filename_v}]"
                         turn_number = get_next_turn_number(session_id)
                         save_incoming_media_message(
                             session_id, msg_text, turn_number,
@@ -952,7 +947,32 @@ async def main():
                             mime_type="image/jpeg" if thumb_url else doc_mime_v,
                             telegram_date=tg_date_v,
                         )
-                        print(f"[TELEGRAM] Large video ({size_mb:.0f}MB) saved locally at {local_path}")
+                        print(f"[TELEGRAM] Large video metadata saved | session={session_id}")
+                    else:
+                        # Small enough — download and upload to storage
+                        video_bytes = await client.download_media(event.message, bytes)
+                        actual_size = len(video_bytes)
+                        if actual_size <= SUPABASE_MAX_BYTES:
+                            storage_path_v = f"video/{filename_v}"
+                            media_url_v = upload_media_to_supabase_storage(video_bytes, storage_path_v, doc_mime_v)
+                            turn_number = get_next_turn_number(session_id)
+                            save_incoming_media_message(
+                                session_id, "[Customer sent a video]", turn_number,
+                                media_type="video", media_url=media_url_v, mime_type=doc_mime_v,
+                                telegram_date=tg_date_v,
+                            )
+                            print(f"[TELEGRAM] Video ({actual_size/(1024*1024):.1f}MB) uploaded to storage")
+                        else:
+                            local_path = save_file_locally(video_bytes, "videos", filename_v)
+                            duration_str = f"{int(duration_v//60)}:{int(duration_v%60):02d}" if duration_v else "unknown"
+                            msg_text = f"[Video - {actual_size/(1024*1024):.0f}MB, duration: {duration_str}]"
+                            turn_number = get_next_turn_number(session_id)
+                            save_incoming_media_message(
+                                session_id, msg_text, turn_number,
+                                media_type="video", media_url="", mime_type=doc_mime_v,
+                                telegram_date=tg_date_v,
+                            )
+                            print(f"[TELEGRAM] Video saved locally: {local_path}")
                     return
                 except Exception as e:
                     print(f"[TELEGRAM] Could not process video: {e}")
@@ -1047,33 +1067,33 @@ async def main():
 
                 if is_video_out:
                     file_size_out = getattr(doc_out, 'size', 0) or 0
+                    size_mb_out = file_size_out / (1024 * 1024)
                     ext_out = doc_mime_out.split('/')[-1].split(';')[0] or 'mp4'
                     filename_out = f"out_{chat_id}_{ts_out}.{ext_out}"
+                    print(f"[TELEGRAM] Outgoing video {size_mb_out:.1f}MB")
 
-                    if file_size_out <= SUPABASE_MAX_BYTES or file_size_out == 0:
-                        vid_bytes_out = await client.download_media(event.message, bytes)
-                        if len(vid_bytes_out) <= SUPABASE_MAX_BYTES:
-                            storage_path_out = f"video/{filename_out}"
-                            media_url_out = upload_media_to_supabase_storage(vid_bytes_out, storage_path_out, doc_mime_out)
-                            turn_number = get_next_turn_number(session_id)
-                            save_incoming_media_message(
-                                session_id, "[You sent a video]", turn_number,
-                                media_type="video", media_url=media_url_out, mime_type=doc_mime_out,
-                                telegram_date=tg_date_out,
-                            )
-                            # Mark as assistant/human source
-                            supabase = get_supabase()
-                            supabase.table("chat_messages").update({
-                                "role": "assistant", "source": "human", "sent_to_telegram": True
-                            }).eq("session_id", session_id).eq("turn_number", turn_number).execute()
-                        else:
-                            local_path_out = save_file_locally(vid_bytes_out, "videos", filename_out)
-                            size_mb_out = len(vid_bytes_out) / (1024*1024)
-                            turn_number = get_next_turn_number(session_id)
-                            save_manual_reply(session_id, f"[You sent a video - {size_mb_out:.0f}MB, saved locally: {os.path.basename(local_path_out)}]", turn_number)
-                    else:
+                    if file_size_out > SUPABASE_MAX_BYTES:
+                        # Download directly to disk — no RAM usage
+                        local_folder_out = ensure_local_dir("videos")
+                        local_path_out = os.path.join(local_folder_out, filename_out)
+                        await client.download_media(event.message, file=local_path_out)
                         turn_number = get_next_turn_number(session_id)
-                        save_manual_reply(session_id, f"[You sent a large video - {file_size_out/(1024*1024):.0f}MB]", turn_number)
+                        save_manual_reply(session_id, f"[You sent a video - {size_mb_out:.0f}MB, saved locally: {filename_out}]", turn_number)
+                        print(f"[TELEGRAM] Large outgoing video saved to {local_path_out}")
+                    else:
+                        vid_bytes_out = await client.download_media(event.message, bytes)
+                        storage_path_out = f"video/{filename_out}"
+                        media_url_out = upload_media_to_supabase_storage(vid_bytes_out, storage_path_out, doc_mime_out)
+                        turn_number = get_next_turn_number(session_id)
+                        save_incoming_media_message(
+                            session_id, "[You sent a video]", turn_number,
+                            media_type="video", media_url=media_url_out, mime_type=doc_mime_out,
+                            telegram_date=tg_date_out,
+                        )
+                        supabase_u = get_supabase()
+                        supabase_u.table("chat_messages").update({
+                            "role": "assistant", "source": "human", "sent_to_telegram": True
+                        }).eq("session_id", session_id).eq("turn_number", turn_number).execute()
 
                 elif is_photo_out:
                     img_bytes_out = await client.download_media(event.message, bytes)
