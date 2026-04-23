@@ -633,19 +633,13 @@ async def poll_handoff_notifications(client):
 
                     customer_ref = ('@' + name) if name else ('Chat ID: ' + str(chat_id))
                     notification = (
-                        f"⚠️ A customer needs your attention
-
-"
-                        f"👤 {customer_ref}
-"
-                        f"📋 Reason: {reason}
-"
+                        f"⚠️ A customer needs your attention"
+                        f"👤 {customer_ref}"
+                        f"📋 Reason: {reason}"
                     )
                     if last_customer_msg:
-                        notification += f"💬 Last message: {last_customer_msg}
-"
-                    notification += f"
-Open Telegram and reply to take over"
+                        notification += f"💬 Last message: {last_customer_msg}"
+                        notification += f"Open Telegram and reply to take over"
 
                     try:
                         await client.send_message(int(owner_id.strip()), notification)
