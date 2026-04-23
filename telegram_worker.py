@@ -511,13 +511,43 @@ async def import_older_messages_for_session(
                     mime = None
 
                 if media_type and mime:
-                    media_bytes = await client.download_media(msg, bytes)
                     ts = int(_time.time())
                     storage_path = f"{folder}/{telegram_chat_id}_{msg.id}_{ts}.{ext}"
-                    media_url = upload_media_to_supabase_storage(media_bytes, storage_path, mime)
-                    mime_type = mime
-                    if not text:
-                        text = f"[{label}]"
+                    doc_size_imp = getattr(getattr(msg_media, 'document', None), 'size', 0) or 0
+
+                    if is_video and doc_size_imp > SUPABASE_MAX_BYTES:
+                        print(f"[HISTORY] Large video {doc_size_imp/(1024*1024):.0f}MB — saving to disk")
+                        local_folder_imp = ensure_local_dir("videos")
+                        filename_imp = f"{telegram_chat_id}_{msg.id}_{ts}.{ext}"
+                        local_path_imp = os.path.join(local_folder_imp, filename_imp)
+                        await client.download_media(msg, file=local_path_imp)
+                        # Try thumbnail
+                        thumb_url_imp = None
+                        try:
+                            doc_imp = getattr(msg_media, 'document', None)
+                            if doc_imp and getattr(doc_imp, 'thumbs', None):
+                                thumb_bytes_imp = await client.download_media(msg, bytes, thumb=-1)
+                                if thumb_bytes_imp:
+                                    thumb_path_imp = f"video_thumbs/{telegram_chat_id}_{msg.id}_{ts}.jpg"
+                                    thumb_url_imp = upload_media_to_supabase_storage(thumb_bytes_imp, thumb_path_imp, 'image/jpeg')
+                        except Exception:
+                            pass
+                        dur_imp = 0
+                        for attr in getattr(getattr(msg_media, 'document', None), 'attributes', []):
+                            if attr.__class__.__name__ == 'DocumentAttributeVideo':
+                                dur_imp = getattr(attr, 'duration', 0) or 0
+                        dur_str_imp = f"{int(dur_imp//60)}:{int(dur_imp%60):02d}" if dur_imp else "unknown"
+                        media_url = thumb_url_imp or ""
+                        media_type = "image" if thumb_url_imp else "video"
+                        mime_type = "image/jpeg" if thumb_url_imp else mime
+                        text = f"[Video - {doc_size_imp/(1024*1024):.0f}MB, duration: {dur_str_imp}, saved locally: {filename_imp}]"
+                        print(f"[HISTORY] Large video saved to {local_path_imp}")
+                    else:
+                        media_bytes = await client.download_media(msg, bytes)
+                        media_url = upload_media_to_supabase_storage(media_bytes, storage_path, mime)
+                        mime_type = mime
+                        if not text:
+                            text = f"[{label}]"
 
             except Exception as e:
                 print(f"[HISTORY] Could not process media for msg {msg.id}: {e}")
