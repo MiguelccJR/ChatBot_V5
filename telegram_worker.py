@@ -231,6 +231,7 @@ def save_incoming_media_message(
     *,
     status: str = "pending_ai",
     error_text: str | None = None,
+    telegram_date: str | None = None,
 ):
     """Saves a message with media (image, audio, video, sticker) stored in Supabase Storage."""
     supabase = get_supabase()
@@ -248,6 +249,7 @@ def save_incoming_media_message(
         "media_type": media_type,
         "media_url": media_url,
         "mime_type": mime_type,
+        "telegram_date": telegram_date,
     }).execute()
 
 
@@ -639,7 +641,7 @@ async def poll_handoff_notifications(client):
                     )
                     if last_customer_msg:
                         notification += f"💬 Last message: {last_customer_msg}"
-                        notification += f"Open Telegram and reply to take over"
+                    notification += f"Open Telegram and reply to take over"
 
                     try:
                         await client.send_message(int(owner_id.strip()), notification)
