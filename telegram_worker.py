@@ -81,6 +81,27 @@ def get_supabase():
 # Supabase helpers
 # ----------------------------
 
+SUPABASE_MAX_BYTES = 45 * 1024 * 1024  # 45MB safe limit
+LOCAL_MEDIA_DIR = os.path.join(os.getcwd(), "media_local")
+
+
+def ensure_local_dir(subfolder: str) -> str:
+    """Creates local media directory if it doesn't exist and returns path."""
+    path = os.path.join(LOCAL_MEDIA_DIR, subfolder)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def save_file_locally(file_bytes: bytes, subfolder: str, filename: str) -> str:
+    """Saves file to local media_local folder and returns the local path."""
+    folder = ensure_local_dir(subfolder)
+    filepath = os.path.join(folder, filename)
+    with open(filepath, 'wb') as f:
+        f.write(file_bytes)
+    print(f"[LOCAL] Saved {len(file_bytes) / (1024*1024):.1f}MB to {filepath}")
+    return filepath
+
+
 def upload_media_to_supabase_storage(file_bytes: bytes, storage_path: str, content_type: str) -> str:
     """Uploads media to Supabase Storage bucket 'chat-media' and returns public URL."""
     supabase = get_supabase()
@@ -598,14 +619,33 @@ async def poll_handoff_notifications(client):
                     chat_id = session.get("telegram_chat_id") or ""
                     reason = session.get("handoff_reason") or "Handoff triggered"
 
+                    # Get last customer message for context
+                    last_customer_msg = ""
+                    try:
+                        supabase2 = get_supabase()
+                        last_msgs = supabase2.table("chat_messages").select("content, role").eq(
+                            "session_id", session_id
+                        ).eq("role", "user").order("created_at", desc=True).limit(1).execute()
+                        if last_msgs.data:
+                            last_customer_msg = (last_msgs.data[0].get("content") or "")[:200]
+                    except Exception:
+                        pass
+
+                    customer_ref = ('@' + name) if name else ('Chat ID: ' + str(chat_id))
                     notification = (
-                        f"⚠️ A customer needs your attention"                        
-                        f"{'@' + name if name else 'Chat ID: ' + str(chat_id)}"
-                            
-                        f"Reason: {reason}"
-                            
-                        f"Open Telegram and reply to take over"
+                        f"⚠️ A customer needs your attention
+
+"
+                        f"👤 {customer_ref}
+"
+                        f"📋 Reason: {reason}
+"
                     )
+                    if last_customer_msg:
+                        notification += f"💬 Last message: {last_customer_msg}
+"
+                    notification += f"
+Open Telegram and reply to take over"
 
                     try:
                         await client.send_message(int(owner_id.strip()), notification)
@@ -848,6 +888,79 @@ async def main():
                 except Exception as e:
                     print(f"[TELEGRAM] Could not process photo: {e} — sending fallback")
 
+            # --- Video: check size, upload to storage if small, save locally if large ---
+            is_video_msg = False
+            if hasattr(msg_media, 'document'):
+                doc_mime_v = getattr(msg_media.document, 'mime_type', '') or ''
+                is_video_msg = doc_mime_v.startswith('video/')
+                if not is_video_msg:
+                    for attr in getattr(msg_media.document, 'attributes', []):
+                        if attr.__class__.__name__ == 'DocumentAttributeVideo':
+                            is_video_msg = True
+                            break
+
+            if is_video_msg:
+                print(f"[TELEGRAM] Video from {chat_id} — checking size")
+                try:
+                    doc = msg_media.document
+                    file_size = getattr(doc, 'size', 0) or 0
+                    doc_mime_v = getattr(doc, 'mime_type', '') or 'video/mp4'
+                    ext_v = doc_mime_v.split('/')[-1].split(';')[0] or 'mp4'
+                    ts_v = int(__import__('time').time())
+                    filename_v = f"{chat_id}_{ts_v}.{ext_v}"
+                    tg_date_v = event.message.date.isoformat() if event.message.date else None
+
+                    # Get duration if available
+                    duration_v = 0
+                    for attr in getattr(doc, 'attributes', []):
+                        if attr.__class__.__name__ == 'DocumentAttributeVideo':
+                            duration_v = getattr(attr, 'duration', 0) or 0
+
+                    video_bytes = await client.download_media(event.message, bytes)
+                    actual_size = len(video_bytes)
+                    size_mb = actual_size / (1024 * 1024)
+
+                    if actual_size <= SUPABASE_MAX_BYTES:
+                        # Small enough — upload to Supabase Storage
+                        storage_path_v = f"video/{filename_v}"
+                        media_url_v = upload_media_to_supabase_storage(video_bytes, storage_path_v, doc_mime_v)
+                        turn_number = get_next_turn_number(session_id)
+                        save_incoming_media_message(
+                            session_id, "[Customer sent a video]", turn_number,
+                            media_type="video", media_url=media_url_v, mime_type=doc_mime_v,
+                            telegram_date=tg_date_v,
+                        )
+                        print(f"[TELEGRAM] Video ({size_mb:.1f}MB) uploaded to storage")
+                    else:
+                        # Too large — save locally + thumbnail to storage
+                        local_path = save_file_locally(video_bytes, "videos", filename_v)
+
+                        # Try to get thumbnail
+                        thumb_url = None
+                        try:
+                            thumb_bytes = await client.download_media(event.message.media.document.thumbs[-1] if hasattr(event.message.media.document, 'thumbs') and event.message.media.document.thumbs else event.message, bytes)
+                            if thumb_bytes and len(thumb_bytes) < SUPABASE_MAX_BYTES:
+                                thumb_path = f"video_thumbs/{chat_id}_{ts_v}.jpg"
+                                thumb_url = upload_media_to_supabase_storage(thumb_bytes, thumb_path, 'image/jpeg')
+                        except Exception as te:
+                            print(f"[TELEGRAM] Could not get thumbnail: {te}")
+
+                        duration_str = f"{int(duration_v//60)}:{int(duration_v%60):02d}" if duration_v else "unknown"
+                        msg_text = f"[Video - {size_mb:.0f}MB, duration: {duration_str}, saved locally: {os.path.basename(local_path)}]"
+
+                        turn_number = get_next_turn_number(session_id)
+                        save_incoming_media_message(
+                            session_id, msg_text, turn_number,
+                            media_type="image" if thumb_url else "video",
+                            media_url=thumb_url or "",
+                            mime_type="image/jpeg" if thumb_url else doc_mime_v,
+                            telegram_date=tg_date_v,
+                        )
+                        print(f"[TELEGRAM] Large video ({size_mb:.0f}MB) saved locally at {local_path}")
+                    return
+                except Exception as e:
+                    print(f"[TELEGRAM] Could not process video: {e}")
+
             # --- Sticker: save as image if it's a static sticker (webp) ---
             is_sticker = False
             if hasattr(msg_media, 'document'):
@@ -908,9 +1021,7 @@ async def main():
 
         chat_id = str(event.chat_id)
         text = (event.message.text or "").strip()
-
-        if not text:
-            return
+        has_media_out = bool(event.message.media)
 
         session = get_session_by_telegram_id(chat_id)
         if not session:
@@ -924,7 +1035,89 @@ async def main():
             set_human_mode(session_id, "Owner replied manually from Telegram")
             print(f"[TELEGRAM] Owner replied — session {session_id} → HUMAN mode")
 
-        # Save manual reply to history
+        # Save media sent by owner
+        if has_media_out and not text:
+            msg_media_out = event.message.media
+            try:
+                import time as _t
+                ts_out = int(_t.time())
+                doc_out = getattr(msg_media_out, 'document', None)
+                doc_mime_out = (getattr(doc_out, 'mime_type', '') or '') if doc_out else ''
+                tg_date_out = event.message.date.isoformat() if event.message.date else None
+
+                is_video_out = doc_mime_out.startswith('video/') if doc_mime_out else False
+                is_photo_out = hasattr(msg_media_out, 'photo')
+                is_audio_out = doc_mime_out.startswith('audio/') if doc_mime_out else False
+
+                if is_video_out:
+                    file_size_out = getattr(doc_out, 'size', 0) or 0
+                    ext_out = doc_mime_out.split('/')[-1].split(';')[0] or 'mp4'
+                    filename_out = f"out_{chat_id}_{ts_out}.{ext_out}"
+
+                    if file_size_out <= SUPABASE_MAX_BYTES or file_size_out == 0:
+                        vid_bytes_out = await client.download_media(event.message, bytes)
+                        if len(vid_bytes_out) <= SUPABASE_MAX_BYTES:
+                            storage_path_out = f"video/{filename_out}"
+                            media_url_out = upload_media_to_supabase_storage(vid_bytes_out, storage_path_out, doc_mime_out)
+                            turn_number = get_next_turn_number(session_id)
+                            save_incoming_media_message(
+                                session_id, "[You sent a video]", turn_number,
+                                media_type="video", media_url=media_url_out, mime_type=doc_mime_out,
+                                telegram_date=tg_date_out,
+                            )
+                            # Mark as assistant/human source
+                            supabase = get_supabase()
+                            supabase.table("chat_messages").update({
+                                "role": "assistant", "source": "human", "sent_to_telegram": True
+                            }).eq("session_id", session_id).eq("turn_number", turn_number).execute()
+                        else:
+                            local_path_out = save_file_locally(vid_bytes_out, "videos", filename_out)
+                            size_mb_out = len(vid_bytes_out) / (1024*1024)
+                            turn_number = get_next_turn_number(session_id)
+                            save_manual_reply(session_id, f"[You sent a video - {size_mb_out:.0f}MB, saved locally: {os.path.basename(local_path_out)}]", turn_number)
+                    else:
+                        turn_number = get_next_turn_number(session_id)
+                        save_manual_reply(session_id, f"[You sent a large video - {file_size_out/(1024*1024):.0f}MB]", turn_number)
+
+                elif is_photo_out:
+                    img_bytes_out = await client.download_media(event.message, bytes)
+                    storage_path_out = f"images/out_{chat_id}_{ts_out}.jpg"
+                    media_url_out = upload_media_to_supabase_storage(img_bytes_out, storage_path_out, 'image/jpeg')
+                    turn_number = get_next_turn_number(session_id)
+                    save_incoming_media_message(
+                        session_id, "[You sent a photo]", turn_number,
+                        media_type="image", media_url=media_url_out, mime_type="image/jpeg",
+                        telegram_date=tg_date_out,
+                    )
+                    supabase = get_supabase()
+                    supabase.table("chat_messages").update({
+                        "role": "assistant", "source": "human", "sent_to_telegram": True
+                    }).eq("session_id", session_id).eq("turn_number", turn_number).execute()
+
+                elif is_audio_out:
+                    audio_bytes_out = await client.download_media(event.message, bytes)
+                    ext_out = doc_mime_out.split('/')[-1].split(';')[0] or 'ogg'
+                    storage_path_out = f"audio/out_{chat_id}_{ts_out}.{ext_out}"
+                    media_url_out = upload_media_to_supabase_storage(audio_bytes_out, storage_path_out, doc_mime_out)
+                    turn_number = get_next_turn_number(session_id)
+                    save_incoming_media_message(
+                        session_id, "[You sent an audio]", turn_number,
+                        media_type="audio", media_url=media_url_out, mime_type=doc_mime_out,
+                        telegram_date=tg_date_out,
+                    )
+                    supabase = get_supabase()
+                    supabase.table("chat_messages").update({
+                        "role": "assistant", "source": "human", "sent_to_telegram": True
+                    }).eq("session_id", session_id).eq("turn_number", turn_number).execute()
+
+            except Exception as e:
+                print(f"[TELEGRAM] Could not save outgoing media: {e}")
+            return
+
+        if not text:
+            return
+
+        # Save manual text reply to history
         turn_number = get_next_turn_number(session_id)
         save_manual_reply(session_id, text, turn_number)
 
