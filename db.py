@@ -170,10 +170,23 @@ def get_chat_messages(session_id: str):
         supabase.table("chat_messages")
         .select("*")
         .eq("session_id", session_id)
-        .order("created_at", desc=False)
         .execute()
     )
-    return response.data or []
+
+    data = response.data or []
+
+    def sort_key(m):
+        # prioridad: telegram_date; si no existe, created_at
+        fecha = m.get("telegram_date") or m.get("created_at") or ""
+        # empate estable por id/turn_number
+        return (
+            fecha,
+            m.get("turn_number") or 0,
+            m.get("id") or 0,
+        )
+
+    data.sort(key=sort_key)
+    return data
 
 
 def get_pending_ai_messages(limit: int = 20):

@@ -351,14 +351,28 @@ with st.sidebar:
             )
 
             if elegido != st.session_state.session_id_activo:
+                st.session_state.session_id_activo = elegido
+                st.session_state.chat_version = st.session_state.get("chat_version", 0) + 1
+
+                # reset controlado del panel
+                st.session_state.pending_opener_type = None
+                st.session_state.manual_reply_text = ""
+
+                # limpiar widgets dinámicos de feedback del chat anterior
                 keys_to_delete = [
                     k for k in list(st.session_state.keys())
-                    if k not in ("auth_username", "auth_role", "session_id_activo", "chat_version")
+                    if (
+                        k.startswith("rating_")
+                        or k.startswith("comment_")
+                        or k.startswith("save_")
+                        or k.startswith("use_opener_")
+                        or k.startswith("send_opener_")
+                        or k.startswith("import_")
+                    )
                 ]
                 for key in keys_to_delete:
                     del st.session_state[key]
-                st.session_state.session_id_activo = elegido
-                st.session_state.chat_version = st.session_state.get("chat_version", 0) + 1
+
                 st.rerun()
 
         if st.button("Refresh panel", use_container_width=True):
