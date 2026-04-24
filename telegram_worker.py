@@ -96,7 +96,7 @@ def save_file_locally(file_bytes: bytes, subfolder: str, filename: str) -> str:
     """Saves file to local media_local folder and returns the local path."""
     folder = ensure_local_dir(subfolder)
     filepath = os.path.join(folder, filename)
-    with open(filepath, 'wb') as f:
+    with open(filepath, "wb") as f:
         f.write(file_bytes)
     print(f"[LOCAL] Saved {len(file_bytes) / (1024*1024):.1f}MB to {filepath}")
     return filepath
@@ -180,6 +180,7 @@ def save_incoming_message(
     *,
     status: str = "pending_ai",
     error_text: str | None = None,
+    telegram_date: str | None = None,
 ):
     supabase = get_supabase()
     supabase.table("chat_messages").insert({
@@ -193,6 +194,7 @@ def save_incoming_message(
         "categorias_detectadas": [],
         "categorias_respondibles": [],
         "error_text": error_text,
+        "telegram_date": telegram_date,
     }).execute()
 
 
@@ -204,6 +206,7 @@ def save_incoming_message_with_image(
     *,
     status: str = "pending_ai",
     error_text: str | None = None,
+    telegram_date: str | None = None,
 ):
     """Saves a message with an embedded image for vision processing."""
     supabase = get_supabase()
@@ -218,6 +221,7 @@ def save_incoming_message_with_image(
         "categorias_detectadas": [{"image_b64": img_b64}],
         "categorias_respondibles": [],
         "error_text": error_text,
+        "telegram_date": telegram_date,
     }).execute()
 
 
@@ -253,7 +257,7 @@ def save_incoming_media_message(
     }).execute()
 
 
-def save_manual_reply(session_id: str, text: str, turn_number: int):
+def save_manual_reply(session_id: str, text: str, turn_number: int, telegram_date: str | None = None):
     supabase = get_supabase()
     supabase.table("chat_messages").insert({
         "session_id": session_id,
@@ -266,6 +270,7 @@ def save_manual_reply(session_id: str, text: str, turn_number: int):
         "idioma": "en",
         "categorias_detectadas": [],
         "categorias_respondibles": [],
+        "telegram_date": telegram_date,
     }).execute()
 
 
@@ -382,6 +387,7 @@ def save_imported_message(
     media_type: str | None = None,
     media_url: str | None = None,
     mime_type: str | None = None,
+    telegram_date: str | None = None,
 ) -> bool:
     supabase = get_supabase()
     payload = {
@@ -399,6 +405,7 @@ def save_imported_message(
         "media_type": media_type,
         "media_url": media_url,
         "mime_type": mime_type,
+        "telegram_date": telegram_date,
     }
     try:
         supabase.table("chat_messages").insert(payload).execute()
@@ -447,101 +454,99 @@ async def import_older_messages_for_session(
         media_type = None
         media_url = None
         mime_type = None
+        tg_date = msg.date.isoformat() if msg.date else None
         text = (msg.message or "").strip()
-        has_media = bool(msg.media)
-        print(f"[HISTORY] msg_id={msg.id} role={role} text={repr(text[:40])} has_media={has_media}")
 
-        # Handle media
         if msg.media:
             try:
                 msg_media = msg.media
-                doc = getattr(msg_media, 'document', None)
-                doc_mime = (getattr(doc, 'mime_type', '') or '') if doc else ''
+                doc = getattr(msg_media, "document", None)
+                doc_mime = (getattr(doc, "mime_type", "") or "") if doc else ""
 
-                is_photo = hasattr(msg_media, 'photo')
+                is_photo = hasattr(msg_media, "photo")
                 is_sticker = False
                 is_voice = False
                 is_video = False
 
                 if doc:
-                    if doc_mime.startswith('image/'):
+                    if doc_mime.startswith("image/"):
                         is_photo = True
-                    if doc_mime == 'image/webp':
+                    if doc_mime == "image/webp":
                         is_sticker = True
-                    for attr in getattr(doc, 'attributes', []):
+                    for attr in getattr(doc, "attributes", []):
                         cls = attr.__class__.__name__
-                        if cls == 'DocumentAttributeSticker':
+                        if cls == "DocumentAttributeSticker":
                             is_sticker = True
-                        if cls == 'DocumentAttributeAudio':
+                        if cls == "DocumentAttributeAudio":
                             is_voice = True
-                        if cls == 'DocumentAttributeVideo':
+                        if cls == "DocumentAttributeVideo":
                             is_video = True
-                    if doc_mime in ('audio/ogg', 'audio/mpeg', 'audio/mp4', 'audio/m4a', 'audio/wav'):
+                    if doc_mime in ("audio/ogg", "audio/mpeg", "audio/mp4", "audio/m4a", "audio/wav"):
                         is_voice = True
-                    if doc_mime.startswith('video/'):
+                    if doc_mime.startswith("video/"):
                         is_video = True
 
                 if is_sticker:
-                    mime = 'image/webp'
-                    ext = 'webp'
-                    folder = 'stickers'
-                    media_type = 'sticker'
-                    label = 'Sticker'
+                    mime = "image/webp"
+                    ext = "webp"
+                    folder = "stickers"
+                    media_type = "sticker"
+                    label = "Sticker"
                 elif is_photo:
-                    mime = doc_mime or 'image/jpeg'
-                    if hasattr(msg_media, 'photo'):
-                        mime = 'image/jpeg'
-                    ext = 'jpg' if 'jpeg' in mime else mime.split('/')[-1]
-                    folder = 'images'
-                    media_type = 'image'
-                    label = 'Photo'
+                    mime = doc_mime or "image/jpeg"
+                    if hasattr(msg_media, "photo"):
+                        mime = "image/jpeg"
+                    ext = "jpg" if "jpeg" in mime else mime.split("/")[-1]
+                    folder = "images"
+                    media_type = "image"
+                    label = "Photo"
                 elif is_voice:
-                    mime = doc_mime or 'audio/ogg'
-                    ext = mime.split('/')[-1].split(';')[0] or 'ogg'
-                    folder = 'audio'
-                    media_type = 'audio'
-                    label = 'Voice message'
+                    mime = doc_mime or "audio/ogg"
+                    ext = mime.split("/")[-1].split(";")[0] or "ogg"
+                    folder = "audio"
+                    media_type = "audio"
+                    label = "Voice message"
                 elif is_video:
-                    mime = doc_mime or 'video/mp4'
-                    ext = mime.split('/')[-1].split(';')[0] or 'mp4'
-                    folder = 'video'
-                    media_type = 'video'
-                    label = 'Video'
+                    mime = doc_mime or "video/mp4"
+                    ext = mime.split("/")[-1].split(";")[0] or "mp4"
+                    folder = "video"
+                    media_type = "video"
+                    label = "Video"
                 else:
                     mime = None
 
                 if media_type and mime:
                     ts = int(_time.time())
                     storage_path = f"{folder}/{telegram_chat_id}_{msg.id}_{ts}.{ext}"
-                    doc_size_imp = getattr(getattr(msg_media, 'document', None), 'size', 0) or 0
+                    doc_size_imp = getattr(getattr(msg_media, "document", None), "size", 0) or 0
 
                     if is_video and doc_size_imp > SUPABASE_MAX_BYTES:
-                        print(f"[HISTORY] Large video {doc_size_imp/(1024*1024):.0f}MB — saving to disk")
                         local_folder_imp = ensure_local_dir("videos")
                         filename_imp = f"{telegram_chat_id}_{msg.id}_{ts}.{ext}"
                         local_path_imp = os.path.join(local_folder_imp, filename_imp)
                         await client.download_media(msg, file=local_path_imp)
-                        # Try thumbnail
+
                         thumb_url_imp = None
                         try:
-                            doc_imp = getattr(msg_media, 'document', None)
-                            if doc_imp and getattr(doc_imp, 'thumbs', None):
+                            doc_imp = getattr(msg_media, "document", None)
+                            if doc_imp and getattr(doc_imp, "thumbs", None):
                                 thumb_bytes_imp = await client.download_media(msg, bytes, thumb=-1)
                                 if thumb_bytes_imp:
                                     thumb_path_imp = f"video_thumbs/{telegram_chat_id}_{msg.id}_{ts}.jpg"
-                                    thumb_url_imp = upload_media_to_supabase_storage(thumb_bytes_imp, thumb_path_imp, 'image/jpeg')
+                                    thumb_url_imp = upload_media_to_supabase_storage(thumb_bytes_imp, thumb_path_imp, "image/jpeg")
                         except Exception:
                             pass
+
                         dur_imp = 0
-                        for attr in getattr(getattr(msg_media, 'document', None), 'attributes', []):
-                            if attr.__class__.__name__ == 'DocumentAttributeVideo':
-                                dur_imp = getattr(attr, 'duration', 0) or 0
+                        for attr in getattr(getattr(msg_media, "document", None), "attributes", []):
+                            if attr.__class__.__name__ == "DocumentAttributeVideo":
+                                dur_imp = getattr(attr, "duration", 0) or 0
+
                         dur_str_imp = f"{int(dur_imp//60)}:{int(dur_imp%60):02d}" if dur_imp else "unknown"
                         media_url = thumb_url_imp or ""
                         media_type = "image" if thumb_url_imp else "video"
                         mime_type = "image/jpeg" if thumb_url_imp else mime
                         text = f"[Video - {doc_size_imp/(1024*1024):.0f}MB, duration: {dur_str_imp}, saved locally: {filename_imp}]"
-                        print(f"[HISTORY] Large video saved to {local_path_imp}")
                     else:
                         media_bytes = await client.download_media(msg, bytes)
                         media_url = upload_media_to_supabase_storage(media_bytes, storage_path, mime)
@@ -564,6 +569,7 @@ async def import_older_messages_for_session(
             media_type=media_type,
             media_url=media_url,
             mime_type=mime_type,
+            telegram_date=tg_date,
         )
         if ok:
             inserted += 1
@@ -610,18 +616,16 @@ async def process_history_import_requests(client):
         await asyncio.sleep(3)
 
 
-# Track sessions we already notified to avoid duplicates
 _notified_handoffs: set[str] = set()
 
+
 async def poll_handoff_notifications(client):
-    """Polls for sessions that switched to human mode and notifies owner."""
     global _notified_handoffs
     while True:
         try:
             owner_id = get_owner_telegram_id()
             if owner_id and owner_id.strip():
                 supabase = get_supabase()
-                # Find sessions in human mode with a recent handoff_since
                 res = supabase.table("test_sessions").select(
                     "id, telegram_chat_id, telegram_username, telegram_first_name, handoff_reason, handoff_since"
                 ).eq("control_mode", "human").eq("platform", "telegram").execute()
@@ -632,12 +636,10 @@ async def poll_handoff_notifications(client):
                     if not handoff_since:
                         continue
 
-                    # Only notify if recent (last 30 seconds) and not already notified
                     notify_key = f"{session_id}_{handoff_since}"
                     if notify_key in _notified_handoffs:
                         continue
 
-                    from datetime import datetime, timezone, timedelta
                     try:
                         dt = datetime.fromisoformat(handoff_since.replace("Z", "+00:00"))
                         if datetime.now(timezone.utc) - dt > timedelta(seconds=30):
@@ -646,12 +648,10 @@ async def poll_handoff_notifications(client):
                     except Exception:
                         continue
 
-                    # Send notification
                     name = session.get("telegram_username") or session.get("telegram_first_name") or ""
                     chat_id = session.get("telegram_chat_id") or ""
                     reason = session.get("handoff_reason") or "Handoff triggered"
 
-                    # Get last customer message for context
                     last_customer_msg = ""
                     try:
                         supabase2 = get_supabase()
@@ -663,21 +663,20 @@ async def poll_handoff_notifications(client):
                     except Exception:
                         pass
 
-                    customer_ref = ('@' + name) if name else ('Chat ID: ' + str(chat_id))
+                    customer_ref = ("@" + name) if name else ("Chat ID: " + str(chat_id))
                     notification = (
-                        f"⚠️ A customer needs your attention"
-                        f"👤 {customer_ref}"
-                        f"📋 Reason: {reason}"
+                        f"⚠️ A customer needs your attention\n\n"
+                        f"👤 {customer_ref}\n"
+                        f"📋 Reason: {reason}\n"
                     )
                     if last_customer_msg:
-                        notification += f"💬 Last message: {last_customer_msg}"
-                    notification += f"Open Telegram and reply to take over"
+                        notification += f"💬 Last message: {last_customer_msg}\n"
+                    notification += "\nOpen Telegram and reply to take over"
 
                     try:
                         await client.send_message(int(owner_id.strip()), notification)
                         print(f"[NOTIFY] Handoff notification sent for session {session_id}")
                         _notified_handoffs.add(notify_key)
-                        # Clean up old entries
                         if len(_notified_handoffs) > 200:
                             _notified_handoffs = set(list(_notified_handoffs)[-100:])
                     except Exception as e:
@@ -698,9 +697,6 @@ async def main():
     me = await client.get_me()
     print(f"[TELEGRAM] Logged in as {me.first_name} (id={me.id})")
 
-    # ----------------------------
-    # Incoming messages from customers
-    # ----------------------------
     @client.on(events.NewMessage(incoming=True))
     async def handle_incoming(event):
         if not event.is_private:
@@ -713,20 +709,16 @@ async def main():
         chat_id = str(event.chat_id)
         text = (event.message.text or "").strip()
         has_media = bool(event.message.media)
+        tg_date_now = event.message.date.isoformat() if event.message.date else None
 
         session = get_session_by_telegram_id(chat_id)
 
-        # New chat — register as disabled, do nothing else
         if not session:
             username = getattr(sender, "username", "") or ""
             first_name = getattr(sender, "first_name", "") or ""
             register_new_chat(chat_id, username, first_name, is_archived=False)
             return
 
-        # If an archived chat writes again, optionally keep it archived.
-        # For now we do not change is_archived automatically.
-
-        # Disabled — save for monitoring but do not process with AI
         if session.get("control_mode", "disabled") == "disabled":
             preview = repr(text[:80]) if text else "[media]"
             print(f"[MONITOR] Disabled chat {chat_id}: {preview}")
@@ -737,38 +729,35 @@ async def main():
             if has_media and not text:
                 msg_media = event.message.media
 
-                # Check if photo
-                is_photo_dis = hasattr(msg_media, 'photo')
-                if not is_photo_dis and hasattr(msg_media, 'document'):
-                    doc_mime_dis = getattr(msg_media.document, 'mime_type', '') or ''
-                    is_photo_dis = doc_mime_dis.startswith('image/')
+                is_photo_dis = hasattr(msg_media, "photo")
+                if not is_photo_dis and hasattr(msg_media, "document"):
+                    doc_mime_dis = getattr(msg_media.document, "mime_type", "") or ""
+                    is_photo_dis = doc_mime_dis.startswith("image/")
 
-                # Check if sticker
                 is_sticker_dis = False
-                if hasattr(msg_media, 'document'):
-                    doc_mime_dis = getattr(msg_media.document, 'mime_type', '') or ''
-                    is_sticker_dis = doc_mime_dis == 'image/webp'
-                    for attr in getattr(msg_media.document, 'attributes', []):
-                        if attr.__class__.__name__ == 'DocumentAttributeSticker':
+                if hasattr(msg_media, "document"):
+                    doc_mime_dis = getattr(msg_media.document, "mime_type", "") or ""
+                    is_sticker_dis = doc_mime_dis == "image/webp"
+                    for attr in getattr(msg_media.document, "attributes", []):
+                        if attr.__class__.__name__ == "DocumentAttributeSticker":
                             is_sticker_dis = True
                             break
 
-                # Detect media type
-                doc_dis = getattr(msg_media, 'document', None)
-                doc_mime_dis = (getattr(doc_dis, 'mime_type', '') or '') if doc_dis else ''
+                doc_dis = getattr(msg_media, "document", None)
+                doc_mime_dis = (getattr(doc_dis, "mime_type", "") or "") if doc_dis else ""
 
                 is_voice_dis = False
                 is_video_dis = False
                 if doc_dis:
-                    for attr in getattr(doc_dis, 'attributes', []):
+                    for attr in getattr(doc_dis, "attributes", []):
                         cls = attr.__class__.__name__
-                        if cls == 'DocumentAttributeAudio':
+                        if cls == "DocumentAttributeAudio":
                             is_voice_dis = True
-                        if cls == 'DocumentAttributeVideo':
+                        if cls == "DocumentAttributeVideo":
                             is_video_dis = True
-                    if doc_mime_dis in ('audio/ogg', 'audio/mpeg', 'audio/mp4', 'audio/m4a', 'audio/wav'):
+                    if doc_mime_dis in ("audio/ogg", "audio/mpeg", "audio/mp4", "audio/m4a", "audio/wav"):
                         is_voice_dis = True
-                    if doc_mime_dis.startswith('video/'):
+                    if doc_mime_dis.startswith("video/"):
                         is_video_dis = True
 
                 import time as _time
@@ -778,46 +767,64 @@ async def main():
                     media_bytes_dis = await client.download_media(event.message, bytes)
 
                     if is_photo_dis or is_sticker_dis:
-                        mime_dis = 'image/webp' if is_sticker_dis else (doc_mime_dis or 'image/jpeg')
-                        if hasattr(msg_media, 'photo') and not is_sticker_dis:
-                            mime_dis = 'image/jpeg'
-                        ext_dis = 'webp' if is_sticker_dis else ('jpg' if 'jpeg' in mime_dis else mime_dis.split('/')[-1])
-                        folder_dis = 'stickers' if is_sticker_dis else 'images'
-                        mtype_dis = 'sticker' if is_sticker_dis else 'image'
-                        label_dis = 'Sticker' if is_sticker_dis else 'Photo'
+                        mime_dis = "image/webp" if is_sticker_dis else (doc_mime_dis or "image/jpeg")
+                        if hasattr(msg_media, "photo") and not is_sticker_dis:
+                            mime_dis = "image/jpeg"
+                        ext_dis = "webp" if is_sticker_dis else ("jpg" if "jpeg" in mime_dis else mime_dis.split("/")[-1])
+                        folder_dis = "stickers" if is_sticker_dis else "images"
+                        mtype_dis = "sticker" if is_sticker_dis else "image"
+                        label_dis = "Sticker" if is_sticker_dis else "Photo"
 
                     elif is_voice_dis:
-                        mime_dis = doc_mime_dis or 'audio/ogg'
-                        ext_dis = mime_dis.split('/')[-1].split(';')[0] or 'ogg'
-                        folder_dis = 'audio'
-                        mtype_dis = 'audio'
-                        label_dis = 'Voice message'
+                        mime_dis = doc_mime_dis or "audio/ogg"
+                        ext_dis = mime_dis.split("/")[-1].split(";")[0] or "ogg"
+                        folder_dis = "audio"
+                        mtype_dis = "audio"
+                        label_dis = "Voice message"
 
                     elif is_video_dis:
-                        mime_dis = doc_mime_dis or 'video/mp4'
-                        ext_dis = mime_dis.split('/')[-1].split(';')[0] or 'mp4'
-                        folder_dis = 'video'
-                        mtype_dis = 'video'
-                        label_dis = 'Video'
+                        mime_dis = doc_mime_dis or "video/mp4"
+                        ext_dis = mime_dis.split("/")[-1].split(";")[0] or "mp4"
+                        folder_dis = "video"
+                        mtype_dis = "video"
+                        label_dis = "Video"
 
                     else:
-                        save_incoming_message(session_id_dis, "[Media received while disabled]", turn_number,
-                            status="waiting_human", error_text="Disabled chat monitored only")
+                        save_incoming_message(
+                            session_id_dis,
+                            "[Media received while disabled]",
+                            turn_number,
+                            status="waiting_human",
+                            error_text="Disabled chat monitored only",
+                            telegram_date=tg_date_now,
+                        )
                         return
 
                     storage_path_dis = f"{folder_dis}/{chat_id}_{ts_dis}.{ext_dis}"
                     media_url_dis = upload_media_to_supabase_storage(media_bytes_dis, storage_path_dis, mime_dis)
                     save_incoming_media_message(
-                        session_id_dis, f"[{label_dis} received while disabled]",
-                        turn_number, media_type=mtype_dis, media_url=media_url_dis, mime_type=mime_dis,
-                        status="waiting_human", error_text="Disabled chat monitored only",
+                        session_id_dis,
+                        f"[{label_dis} received while disabled]",
+                        turn_number,
+                        media_type=mtype_dis,
+                        media_url=media_url_dis,
+                        mime_type=mime_dis,
+                        status="waiting_human",
+                        error_text="Disabled chat monitored only",
+                        telegram_date=tg_date_now,
                     )
                     print(f"[MONITOR] Saved {mtype_dis} from disabled chat {chat_id}")
 
                 except Exception as e:
                     print(f"[MONITOR] Could not save media from disabled chat: {e}")
-                    save_incoming_message(session_id_dis, "[Media received while disabled — upload failed]",
-                        turn_number, status="waiting_human", error_text="Disabled chat monitored only")
+                    save_incoming_message(
+                        session_id_dis,
+                        "[Media received while disabled — upload failed]",
+                        turn_number,
+                        status="waiting_human",
+                        error_text="Disabled chat monitored only",
+                        telegram_date=tg_date_now,
+                    )
             else:
                 save_incoming_message(
                     session_id_dis,
@@ -825,6 +832,7 @@ async def main():
                     turn_number,
                     status="waiting_human",
                     error_text="Disabled chat monitored only",
+                    telegram_date=tg_date_now,
                 )
             return
 
@@ -833,7 +841,6 @@ async def main():
         control_mode = session.get("control_mode", "disabled")
         session_id = session["id"]
 
-        # Human mode — save message but don't process with AI
         if control_mode == "human":
             if text:
                 turn_number = get_next_turn_number(session_id)
@@ -843,23 +850,22 @@ async def main():
                     turn_number,
                     status="waiting_human",
                     error_text="Waiting for human reply",
+                    telegram_date=tg_date_now,
                 )
             print(f"[TELEGRAM] Chat in HUMAN mode — saved, not processing")
             return
 
-        # Handle media messages
         if has_media and not text:
             msg_media = event.message.media
 
-            # --- Voice/audio message: transcribe with Whisper ---
-            is_voice = hasattr(msg_media, 'document') and any(
-                getattr(attr, '__class__.__name__', '') in ('DocumentAttributeAudio',)
-                for attr in getattr(getattr(msg_media, 'document', None), 'attributes', [])
+            is_voice = hasattr(msg_media, "document") and any(
+                getattr(attr, "__class__.__name__", "") in ("DocumentAttributeAudio",)
+                for attr in getattr(getattr(msg_media, "document", None), "attributes", [])
             )
 
             if not is_voice:
-                is_voice = getattr(getattr(msg_media, 'document', None), 'mime_type', '') in (
-                    'audio/ogg', 'audio/mpeg', 'audio/mp4', 'audio/m4a', 'audio/wav'
+                is_voice = getattr(getattr(msg_media, "document", None), "mime_type", "") in (
+                    "audio/ogg", "audio/mpeg", "audio/mp4", "audio/m4a", "audio/wav"
                 )
 
             if is_voice:
@@ -870,11 +876,15 @@ async def main():
                     if transcription:
                         text = f"[Voice message]: {transcription}"
                         turn_number = get_next_turn_number(session_id)
-                        save_incoming_message(session_id, text, turn_number)
+                        save_incoming_message(
+                            session_id,
+                            text,
+                            turn_number,
+                            telegram_date=tg_date_now,
+                        )
                         print(f"[TELEGRAM] Voice transcribed and saved | session={session_id}")
                         return
                     else:
-                        print(f"[TELEGRAM] Whisper returned empty — sending fallback")
                         await client.send_message(
                             int(chat_id),
                             "Sorry, I couldn't hear that clearly 😅 Could you type it instead?"
@@ -888,82 +898,80 @@ async def main():
                     )
                     return
 
-            # --- Photo: upload to Supabase Storage ---
-            is_photo = hasattr(msg_media, 'photo')
-            if not is_photo and hasattr(msg_media, 'document'):
-                doc_mime = getattr(msg_media.document, 'mime_type', '') or ''
-                is_photo = doc_mime.startswith('image/')
+            is_photo = hasattr(msg_media, "photo")
+            if not is_photo and hasattr(msg_media, "document"):
+                doc_mime = getattr(msg_media.document, "mime_type", "") or ""
+                is_photo = doc_mime.startswith("image/")
 
             if is_photo:
                 print(f"[TELEGRAM] Photo from {chat_id} — uploading to storage")
                 try:
                     img_bytes = await client.download_media(event.message, bytes)
-                    doc_mime = getattr(getattr(msg_media, 'document', None), 'mime_type', '') or 'image/jpeg'
-                    if hasattr(msg_media, 'photo'):
-                        doc_mime = 'image/jpeg'
-                    ext = 'jpg' if 'jpeg' in doc_mime or doc_mime == 'image/jpg' else doc_mime.split('/')[-1]
+                    doc_mime = getattr(getattr(msg_media, "document", None), "mime_type", "") or "image/jpeg"
+                    if hasattr(msg_media, "photo"):
+                        doc_mime = "image/jpeg"
+                    ext = "jpg" if "jpeg" in doc_mime or doc_mime == "image/jpg" else doc_mime.split("/")[-1]
                     storage_path = f"images/{chat_id}_{int(__import__('time').time())}.{ext}"
                     media_url = upload_media_to_supabase_storage(img_bytes, storage_path, doc_mime)
                     turn_number = get_next_turn_number(session_id)
                     save_incoming_media_message(
-                        session_id, "[Customer sent a photo]", turn_number,
-                        media_type="image", media_url=media_url, mime_type=doc_mime
+                        session_id,
+                        "[Customer sent a photo]",
+                        turn_number,
+                        media_type="image",
+                        media_url=media_url,
+                        mime_type=doc_mime,
+                        telegram_date=tg_date_now,
                     )
                     print(f"[TELEGRAM] Photo uploaded to storage | session={session_id}")
                     return
                 except Exception as e:
                     print(f"[TELEGRAM] Could not process photo: {e} — sending fallback")
 
-            # --- Video: check size, upload to storage if small, save locally if large ---
             is_video_msg = False
-            if hasattr(msg_media, 'document'):
-                doc_mime_v = getattr(msg_media.document, 'mime_type', '') or ''
-                is_video_msg = doc_mime_v.startswith('video/')
+            if hasattr(msg_media, "document"):
+                doc_mime_v = getattr(msg_media.document, "mime_type", "") or ""
+                is_video_msg = doc_mime_v.startswith("video/")
                 if not is_video_msg:
-                    for attr in getattr(msg_media.document, 'attributes', []):
-                        if attr.__class__.__name__ == 'DocumentAttributeVideo':
+                    for attr in getattr(msg_media.document, "attributes", []):
+                        if attr.__class__.__name__ == "DocumentAttributeVideo":
                             is_video_msg = True
                             break
 
             if is_video_msg:
                 doc = msg_media.document
-                file_size = getattr(doc, 'size', 0) or 0
+                file_size = getattr(doc, "size", 0) or 0
                 size_mb = file_size / (1024 * 1024)
-                doc_mime_v = getattr(doc, 'mime_type', '') or 'video/mp4'
-                ext_v = doc_mime_v.split('/')[-1].split(';')[0] or 'mp4'
+                doc_mime_v = getattr(doc, "mime_type", "") or "video/mp4"
+                ext_v = doc_mime_v.split("/")[-1].split(";")[0] or "mp4"
                 import time as _tv
                 ts_v = int(_tv.time())
                 filename_v = f"{chat_id}_{ts_v}.{ext_v}"
-                tg_date_v = event.message.date.isoformat() if event.message.date else None
+                tg_date_v = tg_date_now
 
                 duration_v = 0
-                for attr in getattr(doc, 'attributes', []):
-                    if attr.__class__.__name__ == 'DocumentAttributeVideo':
-                        duration_v = getattr(attr, 'duration', 0) or 0
+                for attr in getattr(doc, "attributes", []):
+                    if attr.__class__.__name__ == "DocumentAttributeVideo":
+                        duration_v = getattr(attr, "duration", 0) or 0
 
                 print(f"[TELEGRAM] Video from {chat_id} — {size_mb:.1f}MB")
 
                 try:
                     if file_size > 0 and file_size > SUPABASE_MAX_BYTES:
-                        # Too large for memory — download directly to disk
-                        print(f"[TELEGRAM] Large video ({size_mb:.0f}MB) — downloading directly to disk")
                         local_folder = ensure_local_dir("videos")
                         local_path_v = os.path.join(local_folder, filename_v)
 
-                        # Download directly to file (no RAM usage)
                         await client.download_media(event.message, file=local_path_v)
                         print(f"[TELEGRAM] Large video saved to {local_path_v}")
 
-                        # Try to get thumbnail (small, safe to do in memory)
                         thumb_url = None
                         try:
-                            thumbs = getattr(doc, 'thumbs', None)
+                            thumbs = getattr(doc, "thumbs", None)
                             if thumbs:
                                 thumb_bytes = await client.download_media(event.message, bytes, thumb=-1)
                                 if thumb_bytes:
                                     thumb_path = f"video_thumbs/{chat_id}_{ts_v}.jpg"
-                                    thumb_url = upload_media_to_supabase_storage(thumb_bytes, thumb_path, 'image/jpeg')
-                                    print(f"[TELEGRAM] Thumbnail saved to storage")
+                                    thumb_url = upload_media_to_supabase_storage(thumb_bytes, thumb_path, "image/jpeg")
                         except Exception as te:
                             print(f"[TELEGRAM] Could not get thumbnail: {te}")
 
@@ -971,7 +979,9 @@ async def main():
                         msg_text = f"[Video - {size_mb:.0f}MB, duration: {duration_str}, saved locally: {filename_v}]"
                         turn_number = get_next_turn_number(session_id)
                         save_incoming_media_message(
-                            session_id, msg_text, turn_number,
+                            session_id,
+                            msg_text,
+                            turn_number,
                             media_type="image" if thumb_url else "video",
                             media_url=thumb_url or "",
                             mime_type="image/jpeg" if thumb_url else doc_mime_v,
@@ -979,7 +989,6 @@ async def main():
                         )
                         print(f"[TELEGRAM] Large video metadata saved | session={session_id}")
                     else:
-                        # Small enough — download and upload to storage
                         video_bytes = await client.download_media(event.message, bytes)
                         actual_size = len(video_bytes)
                         if actual_size <= SUPABASE_MAX_BYTES:
@@ -987,8 +996,12 @@ async def main():
                             media_url_v = upload_media_to_supabase_storage(video_bytes, storage_path_v, doc_mime_v)
                             turn_number = get_next_turn_number(session_id)
                             save_incoming_media_message(
-                                session_id, "[Customer sent a video]", turn_number,
-                                media_type="video", media_url=media_url_v, mime_type=doc_mime_v,
+                                session_id,
+                                "[Customer sent a video]",
+                                turn_number,
+                                media_type="video",
+                                media_url=media_url_v,
+                                mime_type=doc_mime_v,
                                 telegram_date=tg_date_v,
                             )
                             print(f"[TELEGRAM] Video ({actual_size/(1024*1024):.1f}MB) uploaded to storage")
@@ -998,8 +1011,12 @@ async def main():
                             msg_text = f"[Video - {actual_size/(1024*1024):.0f}MB, duration: {duration_str}]"
                             turn_number = get_next_turn_number(session_id)
                             save_incoming_media_message(
-                                session_id, msg_text, turn_number,
-                                media_type="video", media_url="", mime_type=doc_mime_v,
+                                session_id,
+                                msg_text,
+                                turn_number,
+                                media_type="video",
+                                media_url="",
+                                mime_type=doc_mime_v,
                                 telegram_date=tg_date_v,
                             )
                             print(f"[TELEGRAM] Video saved locally: {local_path}")
@@ -1007,13 +1024,12 @@ async def main():
                 except Exception as e:
                     print(f"[TELEGRAM] Could not process video: {e}")
 
-            # --- Sticker: save as image if it's a static sticker (webp) ---
             is_sticker = False
-            if hasattr(msg_media, 'document'):
-                doc_mime = getattr(msg_media.document, 'mime_type', '') or ''
-                is_sticker = doc_mime == 'image/webp'
-                for attr in getattr(msg_media.document, 'attributes', []):
-                    if attr.__class__.__name__ == 'DocumentAttributeSticker':
+            if hasattr(msg_media, "document"):
+                doc_mime = getattr(msg_media.document, "mime_type", "") or ""
+                is_sticker = doc_mime == "image/webp"
+                for attr in getattr(msg_media.document, "attributes", []):
+                    if attr.__class__.__name__ == "DocumentAttributeSticker":
                         is_sticker = True
                         break
 
@@ -1022,45 +1038,48 @@ async def main():
                 try:
                     sticker_bytes = await client.download_media(event.message, bytes)
                     storage_path = f"stickers/{chat_id}_{int(__import__('time').time())}.webp"
-                    media_url = upload_media_to_supabase_storage(sticker_bytes, storage_path, 'image/webp')
+                    media_url = upload_media_to_supabase_storage(sticker_bytes, storage_path, "image/webp")
                     turn_number = get_next_turn_number(session_id)
                     save_incoming_media_message(
-                        session_id, "[Customer sent a sticker]", turn_number,
-                        media_type="sticker", media_url=media_url, mime_type="image/webp"
+                        session_id,
+                        "[Customer sent a sticker]",
+                        turn_number,
+                        media_type="sticker",
+                        media_url=media_url,
+                        mime_type="image/webp",
+                        telegram_date=tg_date_now,
                     )
                     print(f"[TELEGRAM] Sticker uploaded | session={session_id}")
                     return
                 except Exception as e:
                     print(f"[TELEGRAM] Could not process sticker: {e}")
 
-            # --- Fallback for unsupported media ---
-            print(f"[TELEGRAM] Unsupported media from {chat_id} — sending friendly reply")
             delay = random.uniform(TYPING_DELAY_MIN, TYPING_DELAY_MAX)
             await asyncio.sleep(delay)
-            async with client.action(int(chat_id), 'typing'):
+            async with client.action(int(chat_id), "typing"):
                 await asyncio.sleep(1.5)
             response = random.choice(NON_TEXT_RESPONSES)
             sent = await client.send_message(int(chat_id), response)
             BOT_SENT_MESSAGE_IDS.add(int(sent.id))
             return
 
-        # Bot mode — save as pending_ai for local_worker
         if not text:
             return
 
         turn_number = get_next_turn_number(session_id)
-        save_incoming_message(session_id, text, turn_number)
+        save_incoming_message(
+            session_id,
+            text,
+            turn_number,
+            telegram_date=tg_date_now,
+        )
         print(f"[TELEGRAM] Saved as pending_ai | session={session_id}")
 
-    # ----------------------------
-    # Outgoing messages (owner replies from phone)
-    # ----------------------------
     @client.on(events.NewMessage(outgoing=True))
     async def handle_outgoing(event):
         if not event.is_private:
             return
 
-        # Ignore messages sent by this worker itself
         if int(event.message.id) in BOT_SENT_MESSAGE_IDS:
             BOT_SENT_MESSAGE_IDS.discard(int(event.message.id))
             return
@@ -1068,6 +1087,7 @@ async def main():
         chat_id = str(event.chat_id)
         text = (event.message.text or "").strip()
         has_media_out = bool(event.message.media)
+        tg_date_out = event.message.date.isoformat() if event.message.date else None
 
         session = get_session_by_telegram_id(chat_id)
         if not session:
@@ -1076,39 +1096,40 @@ async def main():
         session_id = session["id"]
         control_mode = session.get("control_mode", "disabled")
 
-        # If bot was active and owner replied manually — switch to human mode
         if control_mode == "bot":
             set_human_mode(session_id, "Owner replied manually from Telegram")
             print(f"[TELEGRAM] Owner replied — session {session_id} → HUMAN mode")
 
-        # Save media sent by owner
         if has_media_out and not text:
             msg_media_out = event.message.media
             try:
                 import time as _t
                 ts_out = int(_t.time())
-                doc_out = getattr(msg_media_out, 'document', None)
-                doc_mime_out = (getattr(doc_out, 'mime_type', '') or '') if doc_out else ''
-                tg_date_out = event.message.date.isoformat() if event.message.date else None
+                doc_out = getattr(msg_media_out, "document", None)
+                doc_mime_out = (getattr(doc_out, "mime_type", "") or "") if doc_out else ""
 
-                is_video_out = doc_mime_out.startswith('video/') if doc_mime_out else False
-                is_photo_out = hasattr(msg_media_out, 'photo')
-                is_audio_out = doc_mime_out.startswith('audio/') if doc_mime_out else False
+                is_video_out = doc_mime_out.startswith("video/") if doc_mime_out else False
+                is_photo_out = hasattr(msg_media_out, "photo")
+                is_audio_out = doc_mime_out.startswith("audio/") if doc_mime_out else False
 
                 if is_video_out:
-                    file_size_out = getattr(doc_out, 'size', 0) or 0
+                    file_size_out = getattr(doc_out, "size", 0) or 0
                     size_mb_out = file_size_out / (1024 * 1024)
-                    ext_out = doc_mime_out.split('/')[-1].split(';')[0] or 'mp4'
+                    ext_out = doc_mime_out.split("/")[-1].split(";")[0] or "mp4"
                     filename_out = f"out_{chat_id}_{ts_out}.{ext_out}"
                     print(f"[TELEGRAM] Outgoing video {size_mb_out:.1f}MB")
 
                     if file_size_out > SUPABASE_MAX_BYTES:
-                        # Download directly to disk — no RAM usage
                         local_folder_out = ensure_local_dir("videos")
                         local_path_out = os.path.join(local_folder_out, filename_out)
                         await client.download_media(event.message, file=local_path_out)
                         turn_number = get_next_turn_number(session_id)
-                        save_manual_reply(session_id, f"[You sent a video - {size_mb_out:.0f}MB, saved locally: {filename_out}]", turn_number)
+                        save_manual_reply(
+                            session_id,
+                            f"[You sent a video - {size_mb_out:.0f}MB, saved locally: {filename_out}]",
+                            turn_number,
+                            telegram_date=tg_date_out,
+                        )
                         print(f"[TELEGRAM] Large outgoing video saved to {local_path_out}")
                     else:
                         vid_bytes_out = await client.download_media(event.message, bytes)
@@ -1116,44 +1137,62 @@ async def main():
                         media_url_out = upload_media_to_supabase_storage(vid_bytes_out, storage_path_out, doc_mime_out)
                         turn_number = get_next_turn_number(session_id)
                         save_incoming_media_message(
-                            session_id, "[You sent a video]", turn_number,
-                            media_type="video", media_url=media_url_out, mime_type=doc_mime_out,
+                            session_id,
+                            "[You sent a video]",
+                            turn_number,
+                            media_type="video",
+                            media_url=media_url_out,
+                            mime_type=doc_mime_out,
                             telegram_date=tg_date_out,
                         )
                         supabase_u = get_supabase()
                         supabase_u.table("chat_messages").update({
-                            "role": "assistant", "source": "human", "sent_to_telegram": True
+                            "role": "assistant",
+                            "source": "human",
+                            "sent_to_telegram": True
                         }).eq("session_id", session_id).eq("turn_number", turn_number).execute()
 
                 elif is_photo_out:
                     img_bytes_out = await client.download_media(event.message, bytes)
                     storage_path_out = f"images/out_{chat_id}_{ts_out}.jpg"
-                    media_url_out = upload_media_to_supabase_storage(img_bytes_out, storage_path_out, 'image/jpeg')
+                    media_url_out = upload_media_to_supabase_storage(img_bytes_out, storage_path_out, "image/jpeg")
                     turn_number = get_next_turn_number(session_id)
                     save_incoming_media_message(
-                        session_id, "[You sent a photo]", turn_number,
-                        media_type="image", media_url=media_url_out, mime_type="image/jpeg",
+                        session_id,
+                        "[You sent a photo]",
+                        turn_number,
+                        media_type="image",
+                        media_url=media_url_out,
+                        mime_type="image/jpeg",
                         telegram_date=tg_date_out,
                     )
                     supabase = get_supabase()
                     supabase.table("chat_messages").update({
-                        "role": "assistant", "source": "human", "sent_to_telegram": True
+                        "role": "assistant",
+                        "source": "human",
+                        "sent_to_telegram": True
                     }).eq("session_id", session_id).eq("turn_number", turn_number).execute()
 
                 elif is_audio_out:
                     audio_bytes_out = await client.download_media(event.message, bytes)
-                    ext_out = doc_mime_out.split('/')[-1].split(';')[0] or 'ogg'
+                    ext_out = doc_mime_out.split("/")[-1].split(";")[0] or "ogg"
                     storage_path_out = f"audio/out_{chat_id}_{ts_out}.{ext_out}"
                     media_url_out = upload_media_to_supabase_storage(audio_bytes_out, storage_path_out, doc_mime_out)
                     turn_number = get_next_turn_number(session_id)
                     save_incoming_media_message(
-                        session_id, "[You sent an audio]", turn_number,
-                        media_type="audio", media_url=media_url_out, mime_type=doc_mime_out,
+                        session_id,
+                        "[You sent an audio]",
+                        turn_number,
+                        media_type="audio",
+                        media_url=media_url_out,
+                        mime_type=doc_mime_out,
                         telegram_date=tg_date_out,
                     )
                     supabase = get_supabase()
                     supabase.table("chat_messages").update({
-                        "role": "assistant", "source": "human", "sent_to_telegram": True
+                        "role": "assistant",
+                        "source": "human",
+                        "sent_to_telegram": True
                     }).eq("session_id", session_id).eq("turn_number", turn_number).execute()
 
             except Exception as e:
@@ -1163,13 +1202,9 @@ async def main():
         if not text:
             return
 
-        # Save manual text reply to history
         turn_number = get_next_turn_number(session_id)
-        save_manual_reply(session_id, text, turn_number)
+        save_manual_reply(session_id, text, turn_number, telegram_date=tg_date_out)
 
-    # ----------------------------
-    # Poll: send pending AI/manual replies
-    # ----------------------------
     async def send_pending_replies():
         while True:
             try:
@@ -1183,8 +1218,6 @@ async def main():
                         mark_message_sent(msg["id"])
                         continue
 
-                    # Don't send if session switched to human or disabled,
-                    # unless the message source is human/streamlit and you want manual sends.
                     source = msg.get("source", "")
                     if control_mode in ("human", "disabled") and source == "local_ai":
                         mark_message_sent(msg["id"])
@@ -1193,7 +1226,7 @@ async def main():
                     try:
                         delay = random.uniform(TYPING_DELAY_MIN, TYPING_DELAY_MAX)
                         await asyncio.sleep(delay)
-                        async with client.action(int(telegram_chat_id), 'typing'):
+                        async with client.action(int(telegram_chat_id), "typing"):
                             await asyncio.sleep(random.uniform(1.0, 2.0))
 
                         sent = await client.send_message(int(telegram_chat_id), msg["content"])
@@ -1207,7 +1240,6 @@ async def main():
                             for c in cats if isinstance(c, dict)
                         )
                         if handoff:
-                            print(f"[NOTIFY] Handoff detected in message, notifying owner...")
                             await notify_owner(client, msg, telegram_chat_id)
 
                     except Exception as e:
@@ -1263,7 +1295,6 @@ async def main():
             print(f"[NOTIFY] Handoff notification sent successfully to {owner_id_clean}")
         except Exception as e:
             print(f"[NOTIFY] Failed to send notification: {e}")
-            # Try sending as string in case int conversion fails
             try:
                 await client.send_message(owner_id_clean, notification)
                 print(f"[NOTIFY] Sent as string successfully")

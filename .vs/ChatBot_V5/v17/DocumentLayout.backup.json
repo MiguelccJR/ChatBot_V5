@@ -3,12 +3,20 @@
   "WorkspaceRootPath": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\auth.py||{3B902123-F8A7-4915-9F01-361F908088D0}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:auth.py||{3B902123-F8A7-4915-9F01-361F908088D0}"
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\telegram_worker.py||{3B902123-F8A7-4915-9F01-361F908088D0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:telegram_worker.py||{3B902123-F8A7-4915-9F01-361F908088D0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\local_ai.py||{3B902123-F8A7-4915-9F01-361F908088D0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:local_ai.py||{3B902123-F8A7-4915-9F01-361F908088D0}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\pages\\config_page.py||{8B382828-6202-11D1-8870-0000F87579D2}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:pages\\config_page.py||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\local_worker.py||{3B902123-F8A7-4915-9F01-361F908088D0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:local_worker.py||{3B902123-F8A7-4915-9F01-361F908088D0}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\pages\\telegram_chats_page.py||{3B902123-F8A7-4915-9F01-361F908088D0}",
@@ -19,16 +27,8 @@
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:app.py||{3B902123-F8A7-4915-9F01-361F908088D0}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\local_ai.py||{3B902123-F8A7-4915-9F01-361F908088D0}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:local_ai.py||{3B902123-F8A7-4915-9F01-361F908088D0}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\local_worker.py||{3B902123-F8A7-4915-9F01-361F908088D0}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:local_worker.py||{3B902123-F8A7-4915-9F01-361F908088D0}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\telegram_worker.py||{3B902123-F8A7-4915-9F01-361F908088D0}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:telegram_worker.py||{3B902123-F8A7-4915-9F01-361F908088D0}"
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\auth.py||{3B902123-F8A7-4915-9F01-361F908088D0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:auth.py||{3B902123-F8A7-4915-9F01-361F908088D0}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\db.py||{3B902123-F8A7-4915-9F01-361F908088D0}",
@@ -62,69 +62,69 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 0,
+          "SelectedChildIndex": 2,
           "Children": [
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 6,
               "Title": "auth.py",
               "DocumentMoniker": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\auth.py",
               "RelativeDocumentMoniker": "auth.py",
               "ToolTip": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\auth.py",
               "RelativeToolTip": "auth.py",
-              "ViewState": "AgIAAE0AAAAAAAAAAAAiwHoAAAARAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAF0AAAARAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
               "WhenOpened": "2026-04-21T18:06:57.733Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 4,
               "Title": "telegram_chats_page.py",
               "DocumentMoniker": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\pages\\telegram_chats_page.py",
               "RelativeDocumentMoniker": "pages\\telegram_chats_page.py",
               "ToolTip": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\pages\\telegram_chats_page.py",
               "RelativeToolTip": "pages\\telegram_chats_page.py",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAGYAAAAeAAAAAAAAAA==",
+              "ViewState": "AgIAADkAAAAAAAAAAAAiwGYAAAAeAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
               "WhenOpened": "2026-04-19T12:55:04.824Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 6,
+              "DocumentIndex": 0,
               "Title": "telegram_worker.py",
               "DocumentMoniker": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\telegram_worker.py",
               "RelativeDocumentMoniker": "telegram_worker.py",
               "ToolTip": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\telegram_worker.py",
               "RelativeToolTip": "telegram_worker.py",
-              "ViewState": "AgIAAKQDAAAAAAAAAAAiwNEDAAAMAAAAAAAAAA==",
+              "ViewState": "AgIAAPIDAAAAAAAAAAAiwB8EAAAMAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
               "WhenOpened": "2026-04-18T23:23:41.042Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 2,
               "Title": "config_page.py",
               "DocumentMoniker": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\pages\\config_page.py",
               "RelativeDocumentMoniker": "pages\\config_page.py",
               "ToolTip": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\pages\\config_page.py",
               "RelativeToolTip": "pages\\config_page.py",
-              "ViewState": "AgIAAF8AAAAAAAAAAAAiwIwAAAAnAAAAAAAAAA==",
+              "ViewState": "AgIAAFMAAAAAAAAAAAAiwIAAAAAnAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
               "WhenOpened": "2026-04-18T22:19:19.826Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 1,
               "Title": "local_ai.py",
               "DocumentMoniker": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\local_ai.py",
               "RelativeDocumentMoniker": "local_ai.py",
               "ToolTip": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\local_ai.py",
               "RelativeToolTip": "local_ai.py",
-              "ViewState": "AgIAAA4AAAAAAAAAAAAqwCkDAABXAAAAAAAAAA==",
+              "ViewState": "AgIAACYDAAAAAAAAAAAiwFMDAABXAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
               "WhenOpened": "2026-04-04T19:47:55.991Z",
               "EditorCaption": ""
@@ -155,13 +155,13 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 3,
               "Title": "local_worker.py",
               "DocumentMoniker": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\local_worker.py",
               "RelativeDocumentMoniker": "local_worker.py",
               "ToolTip": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\local_worker.py",
               "RelativeToolTip": "local_worker.py",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAIYBAAAKAAAAAAAAAA==",
+              "ViewState": "AgIAAHEBAAAAAAAAAAAiwJ4BAAAKAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
               "WhenOpened": "2026-04-04T23:44:53.805Z",
               "EditorCaption": ""
@@ -204,13 +204,13 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 5,
               "Title": "app.py",
               "DocumentMoniker": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\app.py",
               "RelativeDocumentMoniker": "app.py",
               "ToolTip": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\app.py",
               "RelativeToolTip": "app.py",
-              "ViewState": "AgIAAPYAAAAAAAAAAAAqwPcCAAAOAAAAAAAAAA==",
+              "ViewState": "AgIAAL8CAAAAAAAAAAAiwOwCAAAOAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
               "WhenOpened": "2026-04-01T19:21:25.485Z",
               "EditorCaption": ""
