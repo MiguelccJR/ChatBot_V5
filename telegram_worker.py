@@ -768,52 +768,48 @@ async def main():
                 import time as _time
                 ts_dis = int(_time.time())
 
+                # Determine media type and storage path
+                if is_photo_dis or hasattr(msg_media, "photo"):
+                    folder_dis = "images"
+                    ext_dis = "jpg"
+                    mime_dis = "image/jpeg"
+                    mtype_dis = "image"
+                    label_dis = "Photo"
+                elif is_video_dis:
+                    folder_dis = "video"
+                    ext_dis = (doc_mime_dis.split("/")[-1].split(";")[0]) if doc_mime_dis else "mp4"
+                    mime_dis = doc_mime_dis or "video/mp4"
+                    mtype_dis = "video"
+                    label_dis = "Video"
+                elif is_voice_dis:
+                    folder_dis = "audio"
+                    ext_dis = (doc_mime_dis.split("/")[-1].split(";")[0]) if doc_mime_dis else "ogg"
+                    mime_dis = doc_mime_dis or "audio/ogg"
+                    mtype_dis = "audio"
+                    label_dis = "Audio"
+                else:
+                    folder_dis = "docs"
+                    ext_dis = "bin"
+                    mime_dis = doc_mime_dis or "application/octet-stream"
+                    mtype_dis = "document"
+                    label_dis = "File"
+
                 try:
-                    media_bytes_dis = await client.download_media(event.message, bytes)
+                    # For large videos, skip download to avoid RAM issues
+                    file_size_dis = getattr(getattr(msg_media, "document", None), "size", 0) or 0
+                    if is_video_dis and file_size_dis > SUPABASE_MAX_BYTES:
+                        media_url_dis = ""
+                        print(f"[MONITOR] Large video from disabled chat {chat_id} — skipping download")
+                    else:
+                        media_bytes_dis = await client.download_media(event.message, bytes)
+                        storage_path_dis = f"{folder_dis}/dis_{chat_id}_{ts_dis}.{ext_dis}"
+                        media_url_dis = upload_media_to_supabase_storage(media_bytes_dis, storage_path_dis, mime_dis)
 
-                    if is_photo_dis:
-                        print(f"[TELEGRAM] Photo from {chat_id}")
-
-                        try:
-                            turn_number = get_next_turn_number(session_id)
-                            if allow_media_storage:
-                                print(f"[TELEGRAM] Uploading photo to storage")
-                                img_bytes = await client.download_media(event.message, bytes)
-                                doc_mime = getattr(getattr(msg_media, "document", None), "mime_type", "") or "image/jpeg"
-                                if hasattr(msg_media, "photo"):
-                                    doc_mime = "image/jpeg"
-                                ext = "jpg" if "jpeg" in doc_mime or doc_mime == "image/jpg" else doc_mime.split("/")[-1]
-                                storage_path = f"images/{chat_id}_{int(__import__('time').time())}.{ext}"
-                                media_url = upload_media_to_supabase_storage(img_bytes, storage_path, doc_mime)
-
-                                save_incoming_media_message(
-                                    session_id,
-                                    "[Customer sent a photo]",
-                                    turn_number,
-                                    media_type="image",
-                                    media_url=media_url,
-                                    mime_type=doc_mime,
-                                    telegram_date=tg_date_now,
-                                )
-                            else:
-                                print(f"[TELEGRAM] Media storage disabled — saving placeholder only")
-                                save_incoming_message(
-                                    session_id,
-                                    "[Customer sent a photo]",
-                                    turn_number,
-                                    telegram_date=tg_date_now,
-                                )
-
-                            return
-                        except Exception as e:
-                            print(f"[TELEGRAM] Could not process photo: {e} — sending fallback")
-
-                    storage_path_dis = f"{folder_dis}/{chat_id}_{ts_dis}.{ext_dis}"
-                    media_url_dis = upload_media_to_supabase_storage(media_bytes_dis, storage_path_dis, mime_dis)
+                    turn_number_dis = get_next_turn_number(session_id)
                     save_incoming_media_message(
-                        session_id_dis,
+                        session_id,
                         f"[{label_dis} received while disabled]",
-                        turn_number,
+                        turn_number_dis,
                         media_type=mtype_dis,
                         media_url=media_url_dis,
                         mime_type=mime_dis,
@@ -821,7 +817,7 @@ async def main():
                         error_text="Disabled chat monitored only",
                         telegram_date=tg_date_now,
                     )
-                    print(f"[MONITOR] Saved {mtype_dis} from disabled chat {chat_id}")
+                    print(f"[MONITOR] Saved {label_dis} from disabled chat {chat_id}")
 
                 except Exception as e:
                     print(f"[MONITOR] Could not save media from disabled chat: {e}")
@@ -912,39 +908,26 @@ async def main():
                 is_photo = doc_mime.startswith("image/")
 
             if is_photo:
-                print(f"[TELEGRAM] Photo from {chat_id}")
+                print(f"[TELEGRAM] Photo from {chat_id} — uploading to storage")
                 try:
                     img_bytes = await client.download_media(event.message, bytes)
-                    doc_mime = "image/jpeg"
-                    import base64 as _b64
-                    img_b64 = _b64.b64encode(img_bytes).decode("utf-8")
-
-                    media_url = ""
-                    if allow_media_storage:
-                        import time as _ti
-                        storage_path = f"images/{chat_id}_{int(_ti.time())}.jpg"
-                        media_url = upload_media_to_supabase_storage(img_bytes, storage_path, doc_mime)
-
-                    # Single insert: b64 for AI vision + media_url for Streamlit display
-                    from db import get_supabase as _gs
-                    _gs().table("chat_messages").insert({
-                        "session_id": session_id,
-                        "turn_number": get_next_turn_number(session_id),
-                        "role": "user",
-                        "content": "[Customer sent a photo]",
-                        "status": "pending_ai",
-                        "source": "telegram",
-                        "idioma": "en",
-                        "categorias_detectadas": [{"image_b64": img_b64}],
-                        "categorias_respondibles": [],
-                        "media_type": "image",
-                        "media_url": media_url,
-                        "mime_type": doc_mime,
-                        "telegram_date": tg_date_now,
-                        "sent_to_telegram": False,
-                    }).execute()
-
-                    print(f"[TELEGRAM] Photo saved with b64+media_url | session={session_id}")
+                    doc_mime = getattr(getattr(msg_media, "document", None), "mime_type", "") or "image/jpeg"
+                    if hasattr(msg_media, "photo"):
+                        doc_mime = "image/jpeg"
+                    ext = "jpg" if "jpeg" in doc_mime or doc_mime == "image/jpg" else doc_mime.split("/")[-1]
+                    storage_path = f"images/{chat_id}_{int(__import__('time').time())}.{ext}"
+                    media_url = upload_media_to_supabase_storage(img_bytes, storage_path, doc_mime)
+                    turn_number = get_next_turn_number(session_id)
+                    save_incoming_media_message(
+                        session_id,
+                        "[Customer sent a photo]",
+                        turn_number,
+                        media_type="image",
+                        media_url=media_url,
+                        mime_type=doc_mime,
+                        telegram_date=tg_date_now,
+                    )
+                    print(f"[TELEGRAM] Photo uploaded to storage | session={session_id}")
                     return
                 except Exception as e:
                     print(f"[TELEGRAM] Could not process photo: {e} — sending fallback")
@@ -1345,32 +1328,18 @@ async def main():
                 print(f"[NOTIFY] Also failed as string: {e2}")
 
     print("[TELEGRAM] Worker running. Listening for messages...")
-    reconnect_delay = 5
-    while True:
-        try:
-            await asyncio.gather(
-                client.run_until_disconnected(),
-                send_pending_replies(),
-                process_history_import_requests(client),
-                poll_handoff_notifications(client),
-            )
-            print(f"[TELEGRAM] Disconnected — reconnecting in {reconnect_delay}s...")
-        except (KeyboardInterrupt, asyncio.CancelledError, SystemExit):
-            print("[TELEGRAM] Worker stopped by user.")
-            await client.disconnect()
-            break
-        except Exception as e:
-            print(f"[TELEGRAM] Connection lost: {e} — reconnecting in {reconnect_delay}s...")
-
-        await asyncio.sleep(reconnect_delay)
-        try:
-            await client.connect()
-            if not await client.is_user_authorized():
-                print("[TELEGRAM] Session expired — cannot reconnect automatically.")
-                break
-            print("[TELEGRAM] Reconnected successfully.")
-        except Exception as e:
-            print(f"[TELEGRAM] Reconnect failed: {e} — retrying...")
+    try:
+        await asyncio.gather(
+            client.run_until_disconnected(),
+            send_pending_replies(),
+            process_history_import_requests(client),
+            poll_handoff_notifications(client),
+        )
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        print("[TELEGRAM] Worker stopped by user.")
+    finally:
+        await client.disconnect()
+        print("[TELEGRAM] Disconnected cleanly.")
 
 
 if __name__ == "__main__":
