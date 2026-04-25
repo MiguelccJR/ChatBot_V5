@@ -20,10 +20,11 @@ from local_ai import (
     generar_respuesta_catalogo,
 )
 
-POLL_SECONDS = 1.5
-BURST_WINDOW_SECONDS = 12
-MAX_GROUP_MESSAGES = 4
+POLL_SECONDS = 2
+BURST_WINDOW_SECONDS = 20
+MAX_GROUP_MESSAGES = 6
 HISTORY_LIMIT = 7
+WAIT_FOR_BURST_SECONDS = 3  # Wait before processing to let more messages arrive
 
 # Config cache: reload every 60 seconds to avoid hitting Supabase on every message
 _config_cache = {}
@@ -68,31 +69,16 @@ def mover_grupo_a_espera_humana(grupo, reason: str = ""):
     print(f"[HANDOFF] Group {ids} moved to waiting_human | reason={motivo}")
 
 
-def construir_historial_corto(session_id: str, hasta_message_id: int | None = None, limite: int = 6, desde_fecha: str | None = None):
+def construir_historial_corto(session_id: str, hasta_message_id: int | None = None, limite: int = 6):
     mensajes = get_chat_messages(session_id)
-
     if hasta_message_id is not None:
         mensajes = [m for m in mensajes if int(m.get("id", 0)) < int(hasta_message_id)]
-
-    # Ignore messages before bot was activated
-    if desde_fecha:
-        dt_desde = parse_dt(desde_fecha)
-        if dt_desde:
-            mensajes = [
-                m for m in mensajes
-                if parse_dt(m.get("telegram_date") or m.get("created_at")) and
-                   parse_dt(m.get("telegram_date") or m.get("created_at")) >= dt_desde
-            ]
 
     historial = []
     for m in mensajes:
         role = m.get("role", "user")
         content = (m.get("content") or "").strip()
         if not content:
-            continue
-        # Skip disabled monitoring messages
-        error_text = (m.get("error_text") or "")
-        if "ignored_disabled_chat" in error_text or "Disabled chat monitored only" in error_text:
             continue
         historial.append(f"{role}: {content}")
 
@@ -215,22 +201,10 @@ def procesar_mensaje_o_grupo(grupo):
         persona_texto = construir_persona_texto(config)
         handoff_message = config.get("handoff_message", "Give me just a sec, let me check that for you 😊")
 
-        # Find when bot was activated — first non-disabled message in this session
-        todos_mensajes = get_chat_messages(session_id)
-        bot_activated_since = None
-        for m in todos_mensajes:
-            et = (m.get("error_text") or "")
-            if "ignored_disabled_chat" in et or "Disabled chat monitored only" in et:
-                continue
-            if m.get("source") == "telegram" and m.get("status") in ("pending_ai", "processing", "done", "waiting_human"):
-                bot_activated_since = m.get("telegram_date") or m.get("created_at")
-                break
-
         historial_corto = construir_historial_corto(
             session_id=session_id,
             hasta_message_id=first_message_id,
-            limite=HISTORY_LIMIT,
-            desde_fecha=bot_activated_since,
+            limite=HISTORY_LIMIT
         )
 
         textos = [(m.get("content") or "").strip() for m in grupo]
@@ -424,6 +398,10 @@ def main():
 
             pendientes = get_pending_ai_messages(limit=20)
             if pendientes:
+                # Wait a bit to let burst messages arrive before processing
+                time.sleep(WAIT_FOR_BURST_SECONDS)
+                # Re-fetch to catch any messages that arrived during the wait
+                pendientes = get_pending_ai_messages(limit=20)
                 grupos = agrupar_mensajes(pendientes)
                 for grupo in grupos:
                     procesar_mensaje_o_grupo(grupo)
