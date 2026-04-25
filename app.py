@@ -353,14 +353,15 @@ with st.sidebar:
             )
 
             if elegido != st.session_state.session_id_activo:
+                # Step 1: mark as switching — next rerun shows loading screen
+                st.session_state.switching_chat = True
                 st.session_state.session_id_activo = elegido
                 st.session_state.chat_version = st.session_state.get("chat_version", 0) + 1
 
-                # reset controlado del panel
+                # Clean all dynamic widgets from previous chat
                 st.session_state.pending_opener_type = None
                 st.session_state.manual_reply_text = ""
 
-                # limpiar widgets dinámicos de feedback del chat anterior
                 keys_to_delete = [
                     k for k in list(st.session_state.keys())
                     if (
@@ -383,6 +384,14 @@ with st.sidebar:
 
 if not sesiones:
     st.stop()
+
+# Loading screen when switching chats
+if st.session_state.get("switching_chat"):
+    st.session_state.switching_chat = False
+    st.markdown("### ⏳ Loading chat...")
+    import time as _tl
+    _tl.sleep(0.3)
+    st.rerun()
 
 session_id_activo = st.session_state.get("session_id_activo")
 sesion = next((s for s in sesiones if s["id"] == session_id_activo), None)
@@ -418,10 +427,13 @@ except Exception:
     allow_media_storage = True
 
 db_chat_messages = []
-try:
-    db_chat_messages = get_chat_messages(session_id_activo)
-except Exception as e:
-    st.error(f"Error loading chat history: {e}")
+if session_id_activo:
+    try:
+        raw_msgs = get_chat_messages(session_id_activo)
+        # Double-check: only keep messages that belong to this session
+        db_chat_messages = [m for m in raw_msgs if m.get("session_id") == session_id_activo]
+    except Exception as e:
+        st.error(f"Error loading chat history: {e}")
 
 # Version key — forces widget re-render when switching chats
 cv = f"{session_id_activo}_{st.session_state.get('chat_version', 0)}"
