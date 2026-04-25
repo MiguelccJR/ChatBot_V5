@@ -128,6 +128,10 @@ def get_session_by_telegram_id(telegram_chat_id: str) -> dict | None:
     )
     return response.data[0] if response.data else None
 
+def media_storage_enabled(session: dict | None) -> bool:
+    if not session:
+        return True
+    return bool(session.get("allow_media_storage", True))
 
 def register_new_chat(
     telegram_chat_id: str,
@@ -712,6 +716,7 @@ async def main():
         tg_date_now = event.message.date.isoformat() if event.message.date else None
 
         session = get_session_by_telegram_id(chat_id)
+        allow_media_storage = media_storage_enabled(session)
 
         if not session:
             username = getattr(sender, "username", "") or ""
@@ -766,39 +771,42 @@ async def main():
                 try:
                     media_bytes_dis = await client.download_media(event.message, bytes)
 
-                    if is_photo_dis or is_sticker_dis:
-                        mime_dis = "image/webp" if is_sticker_dis else (doc_mime_dis or "image/jpeg")
-                        if hasattr(msg_media, "photo") and not is_sticker_dis:
-                            mime_dis = "image/jpeg"
-                        ext_dis = "webp" if is_sticker_dis else ("jpg" if "jpeg" in mime_dis else mime_dis.split("/")[-1])
-                        folder_dis = "stickers" if is_sticker_dis else "images"
-                        mtype_dis = "sticker" if is_sticker_dis else "image"
-                        label_dis = "Sticker" if is_sticker_dis else "Photo"
+                    if is_photo:
+                    print(f"[TELEGRAM] Photo from {chat_id}")
 
-                    elif is_voice_dis:
-                        mime_dis = doc_mime_dis or "audio/ogg"
-                        ext_dis = mime_dis.split("/")[-1].split(";")[0] or "ogg"
-                        folder_dis = "audio"
-                        mtype_dis = "audio"
-                        label_dis = "Voice message"
+                    try:
+                        turn_number = get_next_turn_number(session_id)
+                        if allow_media_storage:
+                            print(f"[TELEGRAM] Uploading photo to storage")
+                            img_bytes = await client.download_media(event.message, bytes)
+                            doc_mime = getattr(getattr(msg_media, "document", None), "mime_type", "") or "image/jpeg"
+                            if hasattr(msg_media, "photo"):
+                                doc_mime = "image/jpeg"
+                            ext = "jpg" if "jpeg" in doc_mime or doc_mime == "image/jpg" else doc_mime.split("/")[-1]
+                            storage_path = f"images/{chat_id}_{int(__import__('time').time())}.{ext}"
+                            media_url = upload_media_to_supabase_storage(img_bytes, storage_path, doc_mime)
 
-                    elif is_video_dis:
-                        mime_dis = doc_mime_dis or "video/mp4"
-                        ext_dis = mime_dis.split("/")[-1].split(";")[0] or "mp4"
-                        folder_dis = "video"
-                        mtype_dis = "video"
-                        label_dis = "Video"
+                            save_incoming_media_message(
+                                session_id,
+                                "[Customer sent a photo]",
+                                turn_number,
+                                media_type="image",
+                                media_url=media_url,
+                                mime_type=doc_mime,
+                                telegram_date=tg_date_now,
+                            )
+                        else:
+                            print(f"[TELEGRAM] Media storage disabled — saving placeholder only")
+                            save_incoming_message(
+                                session_id,
+                                "[Customer sent a photo]",
+                                turn_number,
+                                telegram_date=tg_date_now,
+                            )
 
-                    else:
-                        save_incoming_message(
-                            session_id_dis,
-                            "[Media received while disabled]",
-                            turn_number,
-                            status="waiting_human",
-                            error_text="Disabled chat monitored only",
-                            telegram_date=tg_date_now,
-                        )
                         return
+                    except Exception as e:
+                        print(f"[TELEGRAM] Could not process photo: {e} — sending fallback")
 
                     storage_path_dis = f"{folder_dis}/{chat_id}_{ts_dis}.{ext_dis}"
                     media_url_dis = upload_media_to_supabase_storage(media_bytes_dis, storage_path_dis, mime_dis)
@@ -978,6 +986,15 @@ async def main():
                         duration_str = f"{int(duration_v//60)}:{int(duration_v%60):02d}" if duration_v else "unknown"
                         msg_text = f"[Video - {size_mb:.0f}MB, duration: {duration_str}, saved locally: {filename_v}]"
                         turn_number = get_next_turn_number(session_id)
+                        if not allow_media_storage:
+                            print(f"[TELEGRAM] Media storage disabled — saving video placeholder only")
+                            save_incoming_message(
+                                session_id,
+                                "[Customer sent a video]",
+                                turn_number,
+                                telegram_date=tg_date_now,
+                            )
+                            return
                         save_incoming_media_message(
                             session_id,
                             msg_text,
@@ -1034,22 +1051,34 @@ async def main():
                         break
 
             if is_sticker:
-                print(f"[TELEGRAM] Sticker from {chat_id} — uploading to storage")
+                print(f"[TELEGRAM] Sticker from {chat_id}")
+
                 try:
-                    sticker_bytes = await client.download_media(event.message, bytes)
-                    storage_path = f"stickers/{chat_id}_{int(__import__('time').time())}.webp"
-                    media_url = upload_media_to_supabase_storage(sticker_bytes, storage_path, "image/webp")
                     turn_number = get_next_turn_number(session_id)
-                    save_incoming_media_message(
-                        session_id,
-                        "[Customer sent a sticker]",
-                        turn_number,
-                        media_type="sticker",
-                        media_url=media_url,
-                        mime_type="image/webp",
-                        telegram_date=tg_date_now,
-                    )
-                    print(f"[TELEGRAM] Sticker uploaded | session={session_id}")
+                    if allow_media_storage:
+                        print(f"[TELEGRAM] Uploading sticker to storage")
+                        sticker_bytes = await client.download_media(event.message, bytes)
+                        storage_path = f"stickers/{chat_id}_{int(__import__('time').time())}.webp"
+                        media_url = upload_media_to_supabase_storage(sticker_bytes, storage_path, "image/webp")
+
+                        save_incoming_media_message(
+                            session_id,
+                            "[Customer sent a sticker]",
+                            turn_number,
+                            media_type="sticker",
+                            media_url=media_url,
+                            mime_type="image/webp",
+                            telegram_date=tg_date_now,
+                        )
+                    else:
+                        print(f"[TELEGRAM] Media storage disabled — saving placeholder only")
+                        save_incoming_message(
+                            session_id,
+                            "[Customer sent a sticker]",
+                            turn_number,
+                            telegram_date=tg_date_now,
+                        )
+
                     return
                 except Exception as e:
                     print(f"[TELEGRAM] Could not process sticker: {e}")
@@ -1090,6 +1119,7 @@ async def main():
         tg_date_out = event.message.date.isoformat() if event.message.date else None
 
         session = get_session_by_telegram_id(chat_id)
+        allow_media_storage = media_storage_enabled(session)
         if not session:
             return
 

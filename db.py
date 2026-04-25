@@ -420,3 +420,20 @@ def get_latest_telegram_history_import_request(session_id: str):
     if response.data:
         return response.data[0]
     return None
+
+def set_session_media_storage(session_id: str, allow_media_storage: bool):
+    supabase = get_supabase()
+    response = (
+        supabase.table("test_sessions")
+        .update({"allow_media_storage": allow_media_storage})
+        .eq("id", session_id)
+        .execute()
+    )
+    return response.data
+
+
+def get_session_media_storage(session_id: str) -> bool:
+    row = get_test_session(session_id)
+    if not row:
+        return True
+    return bool(row.get("allow_media_storage", True))

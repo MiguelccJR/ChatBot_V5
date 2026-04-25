@@ -14,6 +14,8 @@ from db import (
     create_chat_message,
     create_telegram_history_import_request,
     get_latest_telegram_history_import_request,
+    set_session_media_storage,
+    get_session_media_storage,
 )
 
 st.set_page_config(
@@ -410,6 +412,11 @@ except Exception:
     handoff_reason = ""
     handoff_since = None
 
+try:
+    allow_media_storage = get_session_media_storage(session_id_activo)
+except Exception:
+    allow_media_storage = True
+
 db_chat_messages = []
 try:
     db_chat_messages = get_chat_messages(session_id_activo)
@@ -512,6 +519,33 @@ with col_ctrl3:
             except Exception as e:
                 st.error(f"Error switching to disabled mode: {e}")
 
+if is_admin():
+    st.markdown("### Media storage")
+
+    media_label = "✅ Media storage enabled" if allow_media_storage else "🚫 Media storage disabled"
+    st.caption(media_label)
+
+    col_media1, col_media2 = st.columns(2)
+
+    with col_media1:
+        if not allow_media_storage:
+            if st.button("Enable media storage", use_container_width=True):
+                try:
+                    set_session_media_storage(session_id_activo, True)
+                    st.success("Media storage enabled for this chat.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error enabling media storage: {e}")
+
+    with col_media2:
+        if allow_media_storage:
+            if st.button("Disable media storage", use_container_width=True):
+                try:
+                    set_session_media_storage(session_id_activo, False)
+                    st.warning("Media storage disabled for this chat.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error disabling media storage: {e}")
 
 # ----------------------------
 # Status banners
@@ -700,7 +734,9 @@ else:
 
         with st.chat_message(chat_role, avatar=avatar):
 
-            if media_type and media_url:
+            show_real_media = is_admin()
+
+            if media_type and media_url and show_real_media:
                 if media_type in ("image", "sticker"):
                     try:
                         st.image(media_url)
@@ -716,6 +752,14 @@ else:
                         st.video(media_url)
                     except Exception:
                         st.caption(f"🎬 {media_url}")
+            elif media_type and not is_admin():
+                placeholder_map = {
+                    "image": "[Photo]",
+                    "sticker": "[Sticker]",
+                    "audio": "[Audio]",
+                    "video": "[Video]",
+                }
+                st.markdown(placeholder_map.get(media_type, "[Media]"))
 
             is_placeholder = text_content in MEDIA_PLACEHOLDERS or text_content.startswith("[Voice message]:")
             if text_content and not (media_type and is_placeholder):
