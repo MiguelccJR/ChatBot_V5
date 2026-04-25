@@ -771,7 +771,7 @@ async def main():
                 try:
                     media_bytes_dis = await client.download_media(event.message, bytes)
 
-                    if is_photo:
+                    if is_photo_dis:
                         print(f"[TELEGRAM] Photo from {chat_id}")
 
                         try:
