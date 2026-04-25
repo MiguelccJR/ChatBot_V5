@@ -33,6 +33,10 @@ Important rules:
 - if the user asks something specific, reply naturally and keep the conversation moving
 - if the user mentions work, being tired, boredom, or relaxing, respond warmly
 - if the user asks something unclear, answer softly and naturally
+- never offer free samples
+- never suggest a sample unless the customer explicitly asks for one
+- never imply that previews, teasers, or samples are free
+- if the customer asks for a sample, treat it as a paid item only if a sample price is explicitly configured
 
 Reply length rules:
 - most replies should be 1 sentence, sometimes 2
@@ -44,6 +48,12 @@ Reply length rules:
 Emoji rules:
 - sometimes use a light emoji, but not always
 - keep it natural and not overdone
+
+Sample rule:
+- do not bring up samples on your own
+- do not use samples as a hook to move the conversation forward
+- only talk about samples if the customer explicitly asks for one
+- if asked, do not invent the price; use the configured sample price only
 
 Meeting in person rules:
 - if the customer suggests meeting in person, seeing each other, going for coffee, or any real-life meetup, decline warmly and naturally
@@ -98,7 +108,7 @@ You classify the customer's latest message in a sales chat.
 
 Return ONLY valid JSON with this exact shape:
 {
-  "primary_intent": "normal_chat" | "specific_content_request" | "price_interest" | "custom_request" | "high_intent" | "human_handoff" | "social_link_request",
+  "primary_intent": "normal_chat" | "specific_content_request" | "price_interest" | "custom_request" | "high_intent" | "human_handoff" | "social_link_request" | "sample_request",
   "confidence": 0.0,
   "handoff_recommended": false,
   "handoff_reason": ""
@@ -112,6 +122,7 @@ Definitions:
 - high_intent: the customer shows strong buying interest or clear desire to move forward
 - human_handoff: the message is sensitive, frustrated, difficult, risky, or clearly better for a human
 - social_link_request: the customer is asking for Instagram, onlyfans, X/Twitter, TikTok, another page, another link, socials, or where else to find you
+- sample_request: the customer explicitly asks for a sample, preview, teaser, trial clip, short preview, or example content
 
 Rules:
 - choose only ONE primary_intent
@@ -474,6 +485,25 @@ def detectar_red_solicitada(mensaje_cliente: str) -> str | None:
 
     return None
 
+def detectar_tipo_muestra(mensaje_cliente: str) -> str:
+    t = (mensaje_cliente or "").lower()
+
+    video_keywords = [
+        "video sample", "sample video", "video preview", "preview video",
+        "teaser video", "short video", "10s", "10 sec", "10 second",
+        "clip", "short clip", "preview clip"
+    ]
+    photo_keywords = [
+        "photo sample", "sample photo", "picture sample", "pic sample",
+        "photo preview", "picture preview", "preview photo", "preview pic"
+    ]
+
+    if any(k in t for k in video_keywords):
+        return "video"
+    if any(k in t for k in photo_keywords):
+        return "photo"
+
+    return "unknown"
 
 def responder_enlace_o_red(mensaje_cliente: str, config: dict | None = None) -> str:
     red = detectar_red_solicitada(mensaje_cliente)
@@ -517,8 +547,35 @@ def responder_enlace_o_red(mensaje_cliente: str, config: dict | None = None) -> 
         url = (links.get("website") or LINKS_CONFIG.get("website", "")).strip()
         return f"Yes, here's my page 😘 {url}" if url else "I do have a website 😘 Want me to send you the link?"
 
-    return "I do, yeah 😘 Which one did you want — Instagram, OnlyFans, TikTok or Twitter?"
+    return "I do, yeah 😘 Which one did you want — Instagram, OnlyFans, TikTok, Twitter or my personal page?"
 
+def generar_respuesta_sample_request(mensaje_cliente: str, config: dict | None = None) -> str:
+    cfg = config or {}
+
+    photo_price = (cfg.get("sample_photo_price") or "").strip()
+    video_price = (cfg.get("sample_video_10s_price") or "").strip()
+
+    sample_type = detectar_tipo_muestra(mensaje_cliente)
+
+    if sample_type == "photo":
+        if photo_price:
+            return f"I do photo samples, yes 😊 A sample photo is {photo_price}."
+        return "I do photo samples sometimes 😊 Tell me exactly what kind you mean."
+
+    if sample_type == "video":
+        if video_price:
+            return f"I do 10s video samples too 😊 A 10s sample video is {video_price}."
+        return "I do short video samples sometimes 😊 Tell me what kind of vibe you want."
+
+    # unknown
+    if photo_price and video_price:
+        return (
+            f"I do paid samples, yes 😊 "
+            f"A sample photo is {photo_price} and a 10s sample video is {video_price}. "
+            f"Which one did you want?"
+        )
+
+    return "I do paid samples sometimes 😊 Were you asking about a photo sample or a short video sample?"
 
 def detectar_intencion_ia_local(
     mensaje_cliente: str,
@@ -577,6 +634,7 @@ def detectar_intencion_ia_local(
             "high_intent",
             "human_handoff",
             "social_link_request",
+            "sample_request",
         }:
             primary_intent = "normal_chat"
 
@@ -652,6 +710,16 @@ def construir_instruccion_contextual(intenciones: list[str]) -> str:
         Keep it natural and calm.
         """.strip()
 
+    if "sample_request" in intenciones:
+        return """
+        The customer is explicitly asking for a sample or preview.
+        Do not offer anything for free.
+        Treat samples as paid items only.
+        If the system has configured sample prices, use them.
+        If the customer does not specify whether they want a photo sample or a short video sample, ask which one they want.
+        Keep the tone natural, warm, and concise.
+        """.strip()
+
     return ""
 
 
@@ -689,6 +757,8 @@ def generar_respuesta_fallback(mensaje_cliente: str) -> str:
         return "Yeah, I do customs sometimes. What were you thinking about?"
     if "content" in t or "what do you do" in t:
         return "I do a mix honestly, depends what you're into. What do you usually like?"
+    if "sample" in t or "preview" in t or "teaser" in t:
+        return "I do paid samples sometimes 😊 Were you asking about a photo sample or a short video sample?"
 
     return "Tell me a little more what you're into."
 
@@ -710,6 +780,12 @@ def generar_respuesta_ia_local(
     while messages_historial and messages_historial[0]["role"] != "user":
         messages_historial.pop(0)
 
+    if "sample_request" in intenciones:
+       config_prices = {}
+        if precios_texto:
+            config_prices["raw_prices"] = precios_texto
+        return generar_respuesta_sample_request(mensaje_cliente) 
+        
     # Build user message — with image if available
     if imagen_b64:
         user_content = [
