@@ -772,41 +772,41 @@ async def main():
                     media_bytes_dis = await client.download_media(event.message, bytes)
 
                     if is_photo:
-                    print(f"[TELEGRAM] Photo from {chat_id}")
+                        print(f"[TELEGRAM] Photo from {chat_id}")
 
-                    try:
-                        turn_number = get_next_turn_number(session_id)
-                        if allow_media_storage:
-                            print(f"[TELEGRAM] Uploading photo to storage")
-                            img_bytes = await client.download_media(event.message, bytes)
-                            doc_mime = getattr(getattr(msg_media, "document", None), "mime_type", "") or "image/jpeg"
-                            if hasattr(msg_media, "photo"):
-                                doc_mime = "image/jpeg"
-                            ext = "jpg" if "jpeg" in doc_mime or doc_mime == "image/jpg" else doc_mime.split("/")[-1]
-                            storage_path = f"images/{chat_id}_{int(__import__('time').time())}.{ext}"
-                            media_url = upload_media_to_supabase_storage(img_bytes, storage_path, doc_mime)
+                        try:
+                            turn_number = get_next_turn_number(session_id)
+                            if allow_media_storage:
+                                print(f"[TELEGRAM] Uploading photo to storage")
+                                img_bytes = await client.download_media(event.message, bytes)
+                                doc_mime = getattr(getattr(msg_media, "document", None), "mime_type", "") or "image/jpeg"
+                                if hasattr(msg_media, "photo"):
+                                    doc_mime = "image/jpeg"
+                                ext = "jpg" if "jpeg" in doc_mime or doc_mime == "image/jpg" else doc_mime.split("/")[-1]
+                                storage_path = f"images/{chat_id}_{int(__import__('time').time())}.{ext}"
+                                media_url = upload_media_to_supabase_storage(img_bytes, storage_path, doc_mime)
 
-                            save_incoming_media_message(
-                                session_id,
-                                "[Customer sent a photo]",
-                                turn_number,
-                                media_type="image",
-                                media_url=media_url,
-                                mime_type=doc_mime,
-                                telegram_date=tg_date_now,
-                            )
-                        else:
-                            print(f"[TELEGRAM] Media storage disabled — saving placeholder only")
-                            save_incoming_message(
-                                session_id,
-                                "[Customer sent a photo]",
-                                turn_number,
-                                telegram_date=tg_date_now,
-                            )
+                                save_incoming_media_message(
+                                    session_id,
+                                    "[Customer sent a photo]",
+                                    turn_number,
+                                    media_type="image",
+                                    media_url=media_url,
+                                    mime_type=doc_mime,
+                                    telegram_date=tg_date_now,
+                                )
+                            else:
+                                print(f"[TELEGRAM] Media storage disabled — saving placeholder only")
+                                save_incoming_message(
+                                    session_id,
+                                    "[Customer sent a photo]",
+                                    turn_number,
+                                    telegram_date=tg_date_now,
+                                )
 
-                        return
-                    except Exception as e:
-                        print(f"[TELEGRAM] Could not process photo: {e} — sending fallback")
+                            return
+                        except Exception as e:
+                            print(f"[TELEGRAM] Could not process photo: {e} — sending fallback")
 
                     storage_path_dis = f"{folder_dis}/{chat_id}_{ts_dis}.{ext_dis}"
                     media_url_dis = upload_media_to_supabase_storage(media_bytes_dis, storage_path_dis, mime_dis)
