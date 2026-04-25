@@ -4,4 +4,5 @@ __pycache__/
 *.pyc
 .env
 .env.*
+media_local/
 !.env.example
