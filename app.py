@@ -748,30 +748,32 @@ else:
 
             show_real_media = is_admin()
 
+            show_real_media = is_admin()
+
             if media_type and media_url and show_real_media:
                 if media_type in ("image", "sticker"):
                     try:
                         st.image(media_url)
                     except Exception:
-                        st.caption(f"📷 {media_url}")
+                        st.caption("📷 [Image]")
                 elif media_type == "audio":
                     try:
                         st.audio(media_url)
                     except Exception:
-                        st.caption(f"🎵 {media_url}")
+                        st.caption("🎵 [Audio]")
                 elif media_type == "video":
                     try:
                         st.video(media_url)
                     except Exception:
-                        st.caption(f"🎬 {media_url}")
-            elif media_type and not is_admin():
+                        st.caption("🎬 [Video]")
+            elif media_type and not show_real_media:
                 placeholder_map = {
                     "image": "[Photo]",
                     "sticker": "[Sticker]",
                     "audio": "[Audio]",
                     "video": "[Video]",
-                }
-                st.markdown(placeholder_map.get(media_type, "[Media]"))
+    }
+    st.markdown(placeholder_map.get(media_type, "[Media]"))
 
             is_placeholder = text_content in MEDIA_PLACEHOLDERS or text_content.startswith("[Voice message]:")
             if text_content and not (media_type and is_placeholder):
