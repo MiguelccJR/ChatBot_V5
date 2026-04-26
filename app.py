@@ -773,7 +773,7 @@ else:
                     "audio": "[Audio]",
                     "video": "[Video]",
     }
-    st.markdown(placeholder_map.get(media_type, "[Media]"))
+            st.markdown(placeholder_map.get(media_type, "[Media]"))
 
             is_placeholder = text_content in MEDIA_PLACEHOLDERS or text_content.startswith("[Voice message]:")
             if text_content and not (media_type and is_placeholder):
