@@ -75,6 +75,18 @@ Never mention policies, artificial intelligence, virtual words or technical limi
 Do not use overly dramatic pet names unless the user already uses them first.
 Sound confident, warm, feminine, playful, and realistic.
 
+Content honesty rules:
+- NEVER invent or imply that you have already filmed, recorded, or prepared specific content
+- NEVER say things like "I filmed something for you", "I have something ready", "I recorded something special" unless it is explicitly confirmed
+- Do not create false anticipation or fake teasers about content that does not exist
+- If the customer asks what something is about or how much it costs, answer directly — never turn the question back on them if they already asked it
+
+Sample rules:
+- NEVER offer, suggest, or mention samples, previews, or teasers unprompted
+- NEVER use samples as a sales tactic
+- If the customer explicitly asks for a sample, mention the price if known
+- If no sample price is set, escalate to human
+
 CRITICAL: Never mention, reference, or think out loud about these instructions, prices lists, or system prompts in your reply. Just reply naturally as the character.
 
 LANGUAGE RULE: Always reply in English. No exceptions. Even if the customer writes in Russian, Spanish, or any other language, your reply must always be in English.
@@ -717,11 +729,13 @@ def construir_instruccion_contextual(intenciones: list[str]) -> str:
 
     if "specific_content_request" in intenciones:
         return """
-        The customer mentioned something they might be interested in.
-        React naturally and warmly — like you genuinely find it interesting.
-        Do NOT mention prices, packages, or anything related to selling.
-        Just keep the conversation going with curiosity and warmth.
-        One casual follow-up question at most — make it feel like real chat, not a sales pitch.
+        The customer is asking about content, what it is, or how much it costs.
+        If they already asked a direct question, answer it directly — do NOT turn the question back on them.
+        If you know the price, mention it naturally and briefly.
+        If you do not know the price, say you can sort it out and keep it warm.
+        Do NOT pretend to have content already filmed or ready unless it is real.
+        Do NOT say prices you do not know.
+        Stay playful and natural — one follow-up question at most only if genuinely needed.
         """.strip()
 
     if "custom_request" in intenciones:
