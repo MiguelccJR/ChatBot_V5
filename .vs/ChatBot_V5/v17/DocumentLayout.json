@@ -3,12 +3,12 @@
   "WorkspaceRootPath": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\telegram_worker.py||{3B902123-F8A7-4915-9F01-361F908088D0}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:telegram_worker.py||{3B902123-F8A7-4915-9F01-361F908088D0}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\app.py||{3B902123-F8A7-4915-9F01-361F908088D0}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:app.py||{3B902123-F8A7-4915-9F01-361F908088D0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\telegram_worker.py||{3B902123-F8A7-4915-9F01-361F908088D0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:telegram_worker.py||{3B902123-F8A7-4915-9F01-361F908088D0}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\local_ai.py||{3B902123-F8A7-4915-9F01-361F908088D0}",
@@ -62,7 +62,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 2,
+          "SelectedChildIndex": 11,
           "Children": [
             {
               "$type": "Document",
@@ -90,13 +90,13 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 1,
               "Title": "telegram_worker.py",
               "DocumentMoniker": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\telegram_worker.py",
               "RelativeDocumentMoniker": "telegram_worker.py",
               "ToolTip": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\telegram_worker.py",
               "RelativeToolTip": "telegram_worker.py",
-              "ViewState": "AgIAAA4FAAAAAAAAAAAIwEQFAAAMAAAAAAAAAA==",
+              "ViewState": "AgIAAA4FAAAAAAAAAAAUwEQFAAAMAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
               "WhenOpened": "2026-04-18T23:23:41.042Z",
               "EditorCaption": ""
@@ -201,13 +201,13 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 0,
               "Title": "app.py",
               "DocumentMoniker": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\app.py",
               "RelativeDocumentMoniker": "app.py",
               "ToolTip": "C:\\Users\\migue\\Documents\\GitHub\\ChatBot_V5\\app.py",
               "RelativeToolTip": "app.py",
-              "ViewState": "AgIAAOECAAAAAAAAAADwv/sCAAArAAAAAAAAAA==",
+              "ViewState": "AgIAAPMCAAAAAAAAAAD4vwcDAAAQAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
               "WhenOpened": "2026-04-01T19:21:25.485Z",
               "EditorCaption": ""

@@ -332,6 +332,57 @@ def extraer_texto_respuesta(choice) -> str:
     return ""
 
 
+def extraer_respuesta_de_razonamiento(texto: str) -> str:
+    """
+    When the model outputs reasoning + final reply, tries to extract just the reply.
+    Strategies:
+    1. Last quoted string: Final decision:\n    "actual reply here"
+    2. Last line that looks like a real chat message
+    3. Text after common final markers
+    """
+    import re
+
+    # Strategy 1: find the last quoted string in the text
+    # Matches both "text" and 'text' including multiline
+    quoted = re.findall(r'"([^"]{5,200})"', texto)
+    if quoted:
+        # Take the last one — usually the final answer
+        candidato = quoted[-1].strip()
+        if candidato and not parece_analisis_o_prompt(candidato):
+            return candidato
+
+    # Strategy 2: text after final markers
+    final_markers = [
+        "final reply:", "final answer:", "final message:", "final response:",
+        "final decision:", "final:", "reply:", "response:", "message:",
+        "going with:", "i'll say:", "chosen:", "output:",
+    ]
+    t_lower = texto.lower()
+    for marker in final_markers:
+        idx = t_lower.rfind(marker)
+        if idx != -1:
+            after = texto[idx + len(marker):].strip()
+            after = after.strip('"').strip("'").strip("*").strip()
+            # Take first sentence/line
+            lineas = [l.strip() for l in after.splitlines() if l.strip()]
+            if lineas:
+                candidato = lineas[0].strip('"').strip("'").strip("*").strip()
+                if candidato and not parece_analisis_o_prompt(candidato) and len(candidato) > 3:
+                    return candidato[:350]
+
+    # Strategy 3: last non-analysis line
+    lineas = [l.strip() for l in texto.splitlines() if l.strip()]
+    for linea in reversed(lineas):
+        linea_clean = linea.strip('"').strip("'").strip("*").strip()
+        if linea_clean and not parece_analisis_o_prompt(linea_clean) and len(linea_clean) > 5:
+            # Extra check: real chat messages don't start with lowercase analysis words
+            primera = linea_clean.split()[0].lower().rstrip(",:.") if linea_clean.split() else ""
+            if primera not in ("okay", "alright", "hmm", "wait", "so", "now", "then", "first", "second", "third", "let", "the", "this", "that", "i'll", "i've", "i'm"):
+                return linea_clean[:350]
+
+    return ""
+
+
 def limpiar_texto_modelo(texto: str) -> str:
     if not texto:
         return ""
@@ -342,33 +393,37 @@ def limpiar_texto_modelo(texto: str) -> str:
     if not texto:
         return ""
 
-    if parece_analisis_o_prompt(texto):
-        return ""
-
-    texto = texto.strip().strip('"').strip("'").strip("*").strip()
-
+    # Quick clean
     prefijos = ["Reply:", "Response:", "Assistant:", "Bot:", "Message:", "Opener:"]
     for prefijo in prefijos:
-        if texto.startswith(prefijo):
-            texto = texto[len(prefijo):].strip()
+        if texto.strip().startswith(prefijo):
+            texto = texto.strip()[len(prefijo):].strip()
 
+    texto_clean = texto.strip().strip('"').strip("'").strip("*").strip()
+
+    # If it looks clean and short — return directly
+    if not parece_analisis_o_prompt(texto_clean) and "\n" not in texto_clean and len(texto_clean) <= 350:
+        return texto_clean
+
+    # If it looks like pure reasoning, try to extract the real reply
+    if parece_analisis_o_prompt(texto_clean) or "\n" in texto_clean:
+        extraido = extraer_respuesta_de_razonamiento(texto)
+        if extraido:
+            return extraido
+
+    # Fallback: try first clean paragraph
     parrafos = [p.strip() for p in texto.split("\n\n") if p.strip()]
     if parrafos:
         candidato = limpiar_prefijo_meta(parrafos[0]).strip().strip('"').strip("'").strip("*").strip()
         if candidato and not parece_analisis_o_prompt(candidato):
             return candidato[:350].strip()
 
+    # Last resort: first clean line
     lineas = [line.strip() for line in texto.splitlines() if line.strip()]
-    if not lineas:
-        return ""
-
     for linea in lineas:
         linea = limpiar_prefijo_meta(linea).strip().strip('"').strip("'").strip("*").strip()
-        if not linea:
-            continue
-        if parece_analisis_o_prompt(linea):
-            continue
-        return linea[:350].strip()
+        if linea and not parece_analisis_o_prompt(linea):
+            return linea[:350].strip()
 
     return ""
 
