@@ -779,12 +779,6 @@ def generar_respuesta_ia_local(
 
     while messages_historial and messages_historial[0]["role"] != "user":
         messages_historial.pop(0)
-
-    if "sample_request" in intenciones:
-       config_prices = {}
-        if precios_texto:
-            config_prices["raw_prices"] = precios_texto
-        return generar_respuesta_sample_request(mensaje_cliente) 
         
     # Build user message — with image if available
     if imagen_b64:
@@ -814,6 +808,13 @@ def generar_respuesta_ia_local(
 
     if extra_instruction:
         system_prompt += "\n\n" + extra_instruction
+
+    if "sample_request" in intenciones:
+        return generar_respuesta_sample_request(mensaje_cliente)
+
+        if precios_texto:
+            config_prices["raw_prices"] = precios_texto
+        return generar_respuesta_sample_request(mensaje_cliente)
 
     messages = [{"role": "system", "content": system_prompt}] + messages_historial
 
