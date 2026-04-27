@@ -291,6 +291,7 @@ def procesar_mensaje_o_grupo(grupo):
                 precios_texto=precios_texto,
                 imagen_b64=imagen_b64,
                 persona_texto=persona_texto,
+                config=config,
             )
 
         print(f"[DEBUG] Raw final reply: {repr(respuesta)}")

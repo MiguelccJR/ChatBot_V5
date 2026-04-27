@@ -2,7 +2,7 @@
 import asyncio
 import random
 import base64
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 
 from telethon import TelegramClient, events
@@ -521,7 +521,7 @@ async def import_older_messages_for_session(
 
                 if media_type and mime:
                     ts = int(_time.time())
-                    storage_path = f"{folder}/{telegram_chat_id}_{msg.id}_{ts}.{ext}"
+                    storage_path = f"{folder}/{telegram_chat_id}/{msg.id}_{ts}.{ext}"
                     doc_size_imp = getattr(getattr(msg_media, "document", None), "size", 0) or 0
 
                     if is_video and doc_size_imp > SUPABASE_MAX_BYTES:
@@ -536,7 +536,7 @@ async def import_older_messages_for_session(
                             if doc_imp and getattr(doc_imp, "thumbs", None):
                                 thumb_bytes_imp = await client.download_media(msg, bytes, thumb=-1)
                                 if thumb_bytes_imp:
-                                    thumb_path_imp = f"video_thumbs/{telegram_chat_id}_{msg.id}_{ts}.jpg"
+                                    thumb_path_imp = f"video_thumbs/{telegram_chat_id}/{msg.id}_{ts}.jpg"
                                     thumb_url_imp = upload_media_to_supabase_storage(thumb_bytes_imp, thumb_path_imp, "image/jpeg")
                         except Exception:
                             pass
@@ -802,12 +802,12 @@ async def main():
                         print(f"[MONITOR] Large video from disabled chat {chat_id} — skipping download")
                     else:
                         media_bytes_dis = await client.download_media(event.message, bytes)
-                        storage_path_dis = f"{folder_dis}/dis_{chat_id}_{ts_dis}.{ext_dis}"
+                        storage_path_dis = f"{folder_dis}/{chat_id}/dis_{ts_dis}.{ext_dis}"
                         media_url_dis = upload_media_to_supabase_storage(media_bytes_dis, storage_path_dis, mime_dis)
 
-                    turn_number_dis = get_next_turn_number(session_id)
+                    turn_number_dis = get_next_turn_number(session_id_dis)
                     save_incoming_media_message(
-                        session_id,
+                        session_id_dis,
                         f"[{label_dis} received while disabled]",
                         turn_number_dis,
                         media_type=mtype_dis,
@@ -915,7 +915,7 @@ async def main():
                     if hasattr(msg_media, "photo"):
                         doc_mime = "image/jpeg"
                     ext = "jpg" if "jpeg" in doc_mime or doc_mime == "image/jpg" else doc_mime.split("/")[-1]
-                    storage_path = f"images/{chat_id}_{int(__import__('time').time())}.{ext}"
+                    storage_path = f"images/{chat_id}/{int(__import__('time').time())}.{ext}"
                     media_url = upload_media_to_supabase_storage(img_bytes, storage_path, doc_mime)
                     turn_number = get_next_turn_number(session_id)
                     save_incoming_media_message(
@@ -974,7 +974,7 @@ async def main():
                             if thumbs:
                                 thumb_bytes = await client.download_media(event.message, bytes, thumb=-1)
                                 if thumb_bytes:
-                                    thumb_path = f"video_thumbs/{chat_id}_{ts_v}.jpg"
+                                    thumb_path = f"video_thumbs/{chat_id}/{ts_v}.jpg"
                                     thumb_url = upload_media_to_supabase_storage(thumb_bytes, thumb_path, "image/jpeg")
                         except Exception as te:
                             print(f"[TELEGRAM] Could not get thumbnail: {te}")
@@ -1005,7 +1005,7 @@ async def main():
                         video_bytes = await client.download_media(event.message, bytes)
                         actual_size = len(video_bytes)
                         if actual_size <= SUPABASE_MAX_BYTES:
-                            storage_path_v = f"video/{filename_v}"
+                            storage_path_v = f"video/{chat_id}/{filename_v}"
                             media_url_v = upload_media_to_supabase_storage(video_bytes, storage_path_v, doc_mime_v)
                             turn_number = get_next_turn_number(session_id)
                             save_incoming_media_message(
@@ -1054,7 +1054,7 @@ async def main():
                     if allow_media_storage:
                         print(f"[TELEGRAM] Uploading sticker to storage")
                         sticker_bytes = await client.download_media(event.message, bytes)
-                        storage_path = f"stickers/{chat_id}_{int(__import__('time').time())}.webp"
+                        storage_path = f"stickers/{chat_id}/{int(__import__('time').time())}.webp"
                         media_url = upload_media_to_supabase_storage(sticker_bytes, storage_path, "image/webp")
 
                         save_incoming_media_message(
@@ -1159,7 +1159,7 @@ async def main():
                         print(f"[TELEGRAM] Large outgoing video saved to {local_path_out}")
                     else:
                         vid_bytes_out = await client.download_media(event.message, bytes)
-                        storage_path_out = f"video/{filename_out}"
+                        storage_path_out = f"video/{chat_id}/{filename_out}"
                         media_url_out = upload_media_to_supabase_storage(vid_bytes_out, storage_path_out, doc_mime_out)
                         turn_number = get_next_turn_number(session_id)
                         save_incoming_media_message(
@@ -1180,7 +1180,7 @@ async def main():
 
                 elif is_photo_out:
                     img_bytes_out = await client.download_media(event.message, bytes)
-                    storage_path_out = f"images/out_{chat_id}_{ts_out}.jpg"
+                    storage_path_out = f"images/{chat_id}/out_{ts_out}.jpg"
                     media_url_out = upload_media_to_supabase_storage(img_bytes_out, storage_path_out, "image/jpeg")
                     turn_number = get_next_turn_number(session_id)
                     save_incoming_media_message(
@@ -1202,7 +1202,7 @@ async def main():
                 elif is_audio_out:
                     audio_bytes_out = await client.download_media(event.message, bytes)
                     ext_out = doc_mime_out.split("/")[-1].split(";")[0] or "ogg"
-                    storage_path_out = f"audio/out_{chat_id}_{ts_out}.{ext_out}"
+                    storage_path_out = f"audio/{chat_id}/out_{ts_out}.{ext_out}"
                     media_url_out = upload_media_to_supabase_storage(audio_bytes_out, storage_path_out, doc_mime_out)
                     turn_number = get_next_turn_number(session_id)
                     save_incoming_media_message(
@@ -1245,7 +1245,10 @@ async def main():
                         continue
 
                     source = msg.get("source", "")
-                    if control_mode in ("human", "disabled") and source == "local_ai":
+                    if control_mode == "disabled":
+                        mark_message_sent(msg["id"])
+                        continue
+                    if control_mode == "human" and source == "local_ai":
                         mark_message_sent(msg["id"])
                         continue
 

@@ -108,11 +108,11 @@ Do not use quotation marks.
 """.strip()
 
 LINKS_CONFIG = {
-    "instagram": "https://instagram.com/TU_USUARIO_REAL",
-    "onlyfans": "https://onlyfans.com/TU_USUARIO_REAL",
-    "x": "https://x.com/TU_USUARIO_REAL",
-    "tiktok": "https://www.tiktok.com/@TU_USUARIO_REAL",
-    "website": "https://TU_WEB_REAL",
+    "instagram": "",
+    "onlyfans": "",
+    "x": "",
+    "tiktok": "",
+    "website": "",
 }
 
 DETECTION_PROMPT = """
@@ -840,6 +840,7 @@ def generar_respuesta_ia_local(
     precios_texto: str = "",
     imagen_b64: str | None = None,
     persona_texto: str = "",
+    config: dict | None = None,
 ) -> str:
     historial_corto = historial_corto or []
     intenciones = intenciones or []
@@ -879,11 +880,7 @@ def generar_respuesta_ia_local(
         system_prompt += "\n\n" + extra_instruction
 
     if "sample_request" in intenciones:
-        return generar_respuesta_sample_request(mensaje_cliente)
-
-        if precios_texto:
-            config_prices["raw_prices"] = precios_texto
-        return generar_respuesta_sample_request(mensaje_cliente)
+        return generar_respuesta_sample_request(mensaje_cliente, config)
 
     messages = [{"role": "system", "content": system_prompt}] + messages_historial
 

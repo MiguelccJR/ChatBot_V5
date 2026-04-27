@@ -59,6 +59,9 @@ def delete_session(session_id):
     from db import get_supabase
     supabase = get_supabase()
     supabase.table("chat_messages").delete().eq("session_id", session_id).execute()
+    supabase.table("opener_suggestions").delete().eq("session_id", session_id).execute()
+    supabase.table("telegram_history_import_requests").delete().eq("session_id", session_id).execute()
+    supabase.table("feedback").delete().eq("session_id", session_id).execute()
     supabase.table("test_sessions").delete().eq("id", session_id).execute()
 
 for session in sessions:
