@@ -1,5 +1,4 @@
-﻿import hmac
-import time
+﻿import time
 import streamlit as st
 
 from db import (
@@ -16,6 +15,7 @@ from db import (
     get_latest_telegram_history_import_request,
     set_session_media_storage,
     get_session_media_storage,
+    get_pending_counts_by_session,
 )
 
 st.set_page_config(
@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-from auth import login_gate as _login_gate
+from auth import login_gate as _login_gate, get_auth_users, is_admin, is_logged_in, login, logout
 _login_gate()
 
 st.title("Telegram Control Panel")
@@ -57,80 +57,32 @@ SOURCE_AVATARS = {
 }
 
 
-# ----------------------------
-# Auth helpers
-# ----------------------------
-def get_auth_users() -> dict:
-    """
-    Expected secrets.toml structure:
 
-    [auth.users.admin]
-    password = "TU_PASSWORD"
-    role = "admin"
-
-    [auth.users.operador]
-    password = "OTRA_PASSWORD"
-    role = "user"
-    """
-    try:
-        auth_cfg = st.secrets["auth"]
-        users_cfg = auth_cfg["users"]
-    except Exception:
-        return {}
-
-    users = {}
-    for username in users_cfg:
-        entry = users_cfg[username]
-        users[username] = {
-            "password": str(entry["password"]),
-            "role": str(entry.get("role", "user")),
-        }
-    return users
+CHAT_PAGE_SIZE = 30
 
 
-AUTH_USERS = get_auth_users()
+@st.cache_data(ttl=10)
+def _sesiones_cached(include_disabled: bool) -> list:
+    return get_telegram_sessions(include_disabled=include_disabled)
+
+
+@st.cache_data(ttl=5)
+def _pending_counts_cached() -> dict:
+    return get_pending_counts_by_session()
 
 
 def init_auth_state():
-    if "auth_username" not in st.session_state:
-        st.session_state.auth_username = None
-    if "auth_role" not in st.session_state:
-        st.session_state.auth_role = "user"
     if "manual_reply_text" not in st.session_state:
         st.session_state.manual_reply_text = ""
     if "chat_version" not in st.session_state:
         st.session_state.chat_version = 0
     if "session_id_activo" not in st.session_state:
         st.session_state.session_id_activo = None
+    if "chat_history_limit" not in st.session_state:
+        st.session_state.chat_history_limit = CHAT_PAGE_SIZE
 
 
 init_auth_state()
-
-
-def is_admin() -> bool:
-    return st.session_state.get("auth_role") == "admin"
-
-
-def is_logged_in() -> bool:
-    return bool(st.session_state.get("auth_username"))
-
-
-def login(username: str, password: str) -> bool:
-    user = AUTH_USERS.get(username)
-    if not user:
-        return False
-    if not hmac.compare_digest(password, user["password"]):
-        return False
-
-    st.session_state.auth_username = username
-    st.session_state.auth_role = user.get("role", "user")
-    return True
-
-
-def logout():
-    st.session_state.auth_username = None
-    st.session_state.auth_role = "user"
-    st.rerun()
 
 
 # ----------------------------
@@ -138,7 +90,7 @@ def logout():
 # ----------------------------
 def cargar_sesiones(include_disabled: bool):
     try:
-        return get_telegram_sessions(include_disabled=include_disabled)
+        return _sesiones_cached(include_disabled=include_disabled)
     except Exception as e:
         st.error(f"Error loading Telegram sessions: {e}")
         return []
@@ -175,16 +127,13 @@ def fmt_datetime(value: str | None) -> str:
     if not value:
         return "-"
     try:
-        from datetime import datetime, timezone, timedelta
+        import os
+        from datetime import datetime, timezone
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo(os.getenv("DISPLAY_TIMEZONE", "Europe/Madrid"))
         dt_str = value[:19].replace("T", " ")
         dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
-        year = dt.year
-        march_last_sunday = max(datetime(year, 3, day) for day in range(25, 32) if datetime(year, 3, day).weekday() == 6)
-        oct_last_sunday = max(datetime(year, 10, day) for day in range(25, 32) if datetime(year, 10, day).weekday() == 6)
-        naive_dt = dt.replace(tzinfo=None)
-        offset = timedelta(hours=2) if march_last_sunday <= naive_dt < oct_last_sunday else timedelta(hours=1)
-        local_dt = dt + offset
-        return local_dt.strftime("%d/%m %H:%M")
+        return dt.astimezone(tz).strftime("%d/%m %H:%M")
     except Exception:
         return value[:19].replace("T", " ")
 
@@ -339,11 +288,18 @@ with st.sidebar:
             opciones = [s["id"] for s in sesiones_filtradas]
             mapa_labels = {}
 
+            try:
+                pending_counts = _pending_counts_cached()
+            except Exception:
+                pending_counts = {}
+
             for s in sesiones_filtradas:
                 mode = s.get("control_mode", "disabled")
                 icon = MODE_ICONS.get(mode, "⚪")
                 display = get_session_display_name(s)
-                mapa_labels[s["id"]] = f"{icon} {display}"
+                count = pending_counts.get(s["id"], 0)
+                badge = f" ({count})" if count > 0 else ""
+                mapa_labels[s["id"]] = f"{icon} {display}{badge}"
 
             elegido = st.radio(
                 "Select chat",
@@ -361,6 +317,7 @@ with st.sidebar:
                 # Clean all dynamic widgets from previous chat
                 st.session_state.pending_opener_type = None
                 st.session_state.manual_reply_text = ""
+                st.session_state.chat_history_limit = CHAT_PAGE_SIZE
 
                 keys_to_delete = [
                     k for k in list(st.session_state.keys())
@@ -730,7 +687,18 @@ MEDIA_PLACEHOLDERS = {
 if not db_chat_messages:
     st.info("No messages yet for this chat.")
 else:
-    mensajes_mostrar = list(reversed(db_chat_messages[-100:]))
+    total_msgs = len(db_chat_messages)
+    limit = st.session_state.get("chat_history_limit", CHAT_PAGE_SIZE)
+    mensajes_mostrar = list(reversed(db_chat_messages[-limit:]))
+
+    if total_msgs > limit:
+        remaining = total_msgs - limit
+        load_n = min(CHAT_PAGE_SIZE, remaining)
+        if st.button(f"⬆️ Load {load_n} more older messages ({remaining} remaining)", key=f"load_more_{cv}"):
+            st.session_state.chat_history_limit = limit + CHAT_PAGE_SIZE
+            st.rerun()
+    elif total_msgs > CHAT_PAGE_SIZE:
+        st.caption(f"All {total_msgs} messages loaded")
 
     for i, mensaje in enumerate(mensajes_mostrar):
         role = mensaje["role"]
@@ -745,8 +713,6 @@ else:
         chat_role, avatar, label = get_message_display_info(mensaje)
 
         with st.chat_message(chat_role, avatar=avatar):
-
-            show_real_media = is_admin()
 
             show_real_media = is_admin()
 

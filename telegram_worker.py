@@ -1,4 +1,5 @@
 ﻿import os
+import re
 import asyncio
 import random
 import base64
@@ -682,7 +683,11 @@ async def poll_handoff_notifications(client):
                         print(f"[NOTIFY] Handoff notification sent for session {session_id}")
                         _notified_handoffs.add(notify_key)
                         if len(_notified_handoffs) > 200:
-                            _notified_handoffs = set(list(_notified_handoffs)[-100:])
+                            sorted_keys = sorted(
+                                _notified_handoffs,
+                                key=lambda k: k.split("_", 1)[-1] if "_" in k else ""
+                            )
+                            _notified_handoffs = set(sorted_keys[-100:])
                     except Exception as e:
                         print(f"[NOTIFY] Failed: {e}")
 
@@ -699,7 +704,16 @@ async def main():
     await client.start(phone=PHONE)
 
     me = await client.get_me()
-    print(f"[TELEGRAM] Logged in as {me.first_name} (id={me.id})")
+    account_phone = getattr(me, "phone", "") or ""
+    env_digits = re.sub(r"\D", "", PHONE)
+    acc_digits = re.sub(r"\D", "", account_phone)
+    if env_digits and acc_digits:
+        if not (env_digits.endswith(acc_digits[-9:]) or acc_digits.endswith(env_digits[-9:])):
+            raise RuntimeError(
+                f"Phone mismatch: TELEGRAM_PHONE='{PHONE}' but account='+{account_phone}'. "
+                "Update TELEGRAM_PHONE in .env and delete telegram_session.session"
+            )
+    print(f"[TELEGRAM] Logged in as {me.first_name} (+{account_phone}, id={me.id})")
 
     @client.on(events.NewMessage(incoming=True))
     async def handle_incoming(event):

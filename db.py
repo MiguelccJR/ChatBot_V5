@@ -1,4 +1,6 @@
 import os
+import functools
+import time as _time
 from datetime import datetime, timezone
 
 import streamlit as st
@@ -7,6 +9,28 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from supabase import create_client
+
+
+def _retry(max_attempts: int = 3, backoff: float = 1.0):
+    """Decorator: retries a Supabase call on transient failures."""
+    def decorator(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_attempts):
+                try:
+                    return fn(*args, **kwargs)
+                except Exception as e:
+                    if attempt == max_attempts - 1:
+                        raise
+                    _time.sleep(backoff * (2 ** attempt))
+        return wrapper
+    return decorator
+
+
+def _sanitize_error(text: str | None, max_len: int = 500) -> str | None:
+    if text is None:
+        return None
+    return str(text)[:max_len]
 
 
 def get_supabase():
@@ -65,6 +89,7 @@ def get_session_control_state(session_id: str) -> dict:
     }
 
 
+@_retry()
 def set_session_control_mode(session_id: str, control_mode: str, handoff_reason: str | None = None):
     supabase = get_supabase()
 
@@ -131,6 +156,7 @@ def save_feedback(session_id: str, turn_number: int, rating: str, comment: str):
     )
 
 
+@_retry()
 def create_chat_message(
     session_id: str,
     turn_number: int,
@@ -164,6 +190,7 @@ def create_chat_message(
     return response.data[0]
 
 
+@_retry()
 def get_chat_messages(session_id: str):
     supabase = get_supabase()
     response = (
@@ -189,6 +216,7 @@ def get_chat_messages(session_id: str):
     return data
 
 
+@_retry()
 def get_pending_ai_messages(limit: int = 20):
     supabase = get_supabase()
     response = (
@@ -203,6 +231,7 @@ def get_pending_ai_messages(limit: int = 20):
     return response.data or []
 
 
+@_retry()
 def update_chat_message_status(
     message_id: int,
     status: str,
@@ -212,7 +241,7 @@ def update_chat_message_status(
 
     payload = {
         "status": status,
-        "error_text": error_text
+        "error_text": _sanitize_error(error_text),
     }
 
     response = (
@@ -293,7 +322,7 @@ def update_opener_request(
     payload = {
         "status": status,
         "suggestion_text": suggestion_text,
-        "error_text": error_text,
+        "error_text": _sanitize_error(error_text),
     }
 
     response = (
@@ -437,3 +466,21 @@ def get_session_media_storage(session_id: str) -> bool:
     if not row:
         return True
     return bool(row.get("allow_media_storage", True))
+
+
+@_retry()
+def get_pending_counts_by_session() -> dict:
+    """Returns {session_id: pending_count} for all sessions with pending/waiting messages."""
+    supabase = get_supabase()
+    response = (
+        supabase.table("chat_messages")
+        .select("session_id, id")
+        .eq("role", "user")
+        .in_("status", ["pending_ai", "waiting_human"])
+        .execute()
+    )
+    counts: dict = {}
+    for row in (response.data or []):
+        sid = row["session_id"]
+        counts[sid] = counts.get(sid, 0) + 1
+    return counts

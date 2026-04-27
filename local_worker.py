@@ -23,8 +23,11 @@ from local_ai import (
 POLL_SECONDS = 2
 BURST_WINDOW_SECONDS = 20
 MAX_GROUP_MESSAGES = 6
-HISTORY_LIMIT = 7
-WAIT_FOR_BURST_SECONDS = 3  # Wait before processing to let more messages arrive
+HISTORY_LIMIT = 9
+WAIT_FOR_BURST_SECONDS = 3
+MAX_BACKOFF_SECONDS = 60
+BACKOFF_FACTOR = 2
+MAX_CONSECUTIVE_USER_MSGS = 10
 
 # Config cache: reload every 60 seconds to avoid hitting Supabase on every message
 _config_cache = {}
@@ -193,6 +196,18 @@ def cliente_pregunta_catalogo(mensaje: str) -> bool:
     return any(kw in t for kw in keywords)
 
 
+def count_consecutive_user_messages(session_id: str) -> int:
+    """Counts consecutive user messages without an assistant reply (flood detection)."""
+    messages = get_chat_messages(session_id)
+    count = 0
+    for msg in reversed(messages):
+        if msg.get("role") == "user":
+            count += 1
+        else:
+            break
+    return count
+
+
 def procesar_mensaje_o_grupo(grupo):
     first_msg = grupo[0]
     last_msg = grupo[-1]
@@ -205,6 +220,17 @@ def procesar_mensaje_o_grupo(grupo):
     en_handoff, reason = session_esta_en_handoff(session_id)
     if en_handoff:
         mover_grupo_a_espera_humana(grupo, reason)
+        return
+
+    consecutive = count_consecutive_user_messages(session_id)
+    if consecutive > MAX_CONSECUTIVE_USER_MSGS:
+        mover_grupo_a_espera_humana(grupo, f"Rate limit: {consecutive} consecutive messages without reply")
+        set_session_control_mode(
+            session_id=session_id,
+            control_mode="human",
+            handoff_reason=f"Rate limit: {consecutive} consecutive messages",
+        )
+        print(f"[RATE LIMIT] Session {session_id} → HUMAN | {consecutive} consecutive messages")
         return
 
     for msg in grupo:
@@ -417,6 +443,7 @@ def procesar_opener_pendiente(item):
 def main():
     print("Local worker started. Waiting for pending items...")
 
+    _sleep = POLL_SECONDS
     while True:
         try:
             pendientes_openers = get_pending_opener_requests(limit=5)
@@ -426,22 +453,22 @@ def main():
 
             pendientes = get_pending_ai_messages(limit=20)
             if pendientes:
-                # Wait a bit to let burst messages arrive before processing
                 time.sleep(WAIT_FOR_BURST_SECONDS)
-                # Re-fetch to catch any messages that arrived during the wait
                 pendientes = get_pending_ai_messages(limit=20)
                 grupos = agrupar_mensajes(pendientes)
                 for grupo in grupos:
                     procesar_mensaje_o_grupo(grupo)
 
-            time.sleep(POLL_SECONDS)
+            _sleep = POLL_SECONDS
+            time.sleep(_sleep)
 
         except KeyboardInterrupt:
             print("Worker stopped by user.")
             break
         except Exception as e:
-            print(f"[LOOP ERROR] {e}")
-            time.sleep(POLL_SECONDS)
+            _sleep = min(_sleep * BACKOFF_FACTOR, MAX_BACKOFF_SECONDS)
+            print(f"[LOOP ERROR] sleep={_sleep}s | {e}")
+            time.sleep(_sleep)
 
 
 if __name__ == "__main__":

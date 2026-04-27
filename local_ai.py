@@ -1,8 +1,20 @@
-﻿import re
+﻿import os
+import re
 import json
 from openai import OpenAI
 
-MODELO_LOCAL = "qwen/qwen3.5-9b"
+MODELO_LOCAL = os.getenv("LMSTUDIO_MODEL", "qwen/qwen3.5-9b")
+
+INTENT_TEMPERATURES = {
+    "normal_chat": 0.90,
+    "high_intent": 0.85,
+    "specific_content_request": 0.70,
+    "price_interest": 0.50,
+    "custom_request": 0.75,
+    "sample_request": 0.50,
+    "social_link_request": 0.60,
+    "human_handoff": 0.70,
+}
 
 client = OpenAI(
     base_url="http://127.0.0.1:1234/v1",
@@ -661,7 +673,7 @@ def detectar_intencion_ia_local(
                 "handoff_reason": f"Explicit content request: '{kw}'",
             }
 
-    messages_historial = construir_mensajes_historial(historial_corto[-4:])
+    messages_historial = construir_mensajes_historial(historial_corto[-6:])
 
     while messages_historial and messages_historial[0]["role"] != "user":
         messages_historial.pop(0)
@@ -845,11 +857,19 @@ def generar_respuesta_ia_local(
     historial_corto = historial_corto or []
     intenciones = intenciones or []
 
-    messages_historial = construir_mensajes_historial(historial_corto[-4:])
+    messages_historial = construir_mensajes_historial(historial_corto[-6:])
 
     while messages_historial and messages_historial[0]["role"] != "user":
         messages_historial.pop(0)
-        
+
+    intent = intenciones[0] if intenciones else "normal_chat"
+    temperature = INTENT_TEMPERATURES.get(intent, 0.85)
+    if config:
+        try:
+            temperature = float(config.get(f"temp_{intent}", temperature))
+        except (TypeError, ValueError):
+            pass
+
     # Build user message — with image if available
     if imagen_b64:
         user_content = [
@@ -888,7 +908,7 @@ def generar_respuesta_ia_local(
         response = client.chat.completions.create(
             model=MODELO_LOCAL,
             messages=messages,
-            temperature=0.85,
+            temperature=temperature,
         )
         texto = limpiar_texto_modelo(extraer_texto_respuesta(response.choices[0]))
         if texto:
@@ -910,7 +930,7 @@ def generar_respuesta_ia_local(
         response_retry = client.chat.completions.create(
             model=MODELO_LOCAL,
             messages=retry_messages,
-            temperature=0.85,
+            temperature=temperature,
         )
         texto_retry = limpiar_texto_modelo(extraer_texto_respuesta(response_retry.choices[0]))
         if texto_retry:
