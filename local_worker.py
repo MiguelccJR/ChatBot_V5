@@ -418,13 +418,15 @@ def procesar_opener_pendiente(item):
     update_opener_request(opener_id, "processing")
 
     try:
+        config = get_config_cached()
         historial_corto = construir_historial_corto(session_id, limite=6)
         print(f"[DEBUG] Generating opener: id={opener_id}, type={opener_type}")
 
         sugerencia = generar_opener_ia_local(
             historial_corto=historial_corto,
             opener_type=opener_type,
-            estado_cliente="chatting"
+            estado_cliente="chatting",
+            config=config,
         )
 
         print(f"[DEBUG] Raw opener result ({opener_type}): {repr(sugerencia)}")
